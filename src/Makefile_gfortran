@@ -14,8 +14,6 @@ FFLAGS   = -Wall -fbacktrace
 .SUFFIXES:
 .SUFFIXES: .o .f90 .exe
 
-COBJ=Mod_hdftools.o Mod_input.o coreread.o readdata.o
-
 all:    hunittest.exe makehdf.exe mpactread.exe
 
 mpactread.exe: Mod_hdftools.o mpactread.o
