@@ -27,7 +27,11 @@
       integer     :: itemp(10)
       integer     :: n
 
+      integer     :: mapcore(3,3)
+      data mapcore / 1, 2, 3, 4, 5, 6, 7, 8, 9 /
+
       real(8)     :: atemp(1), db
+      real(8)     :: axial(10)
 
       real(8), allocatable :: xkeff(:)      ! eigenvalues
       real(8), allocatable :: xboron(:)     ! boron concentrations
@@ -111,6 +115,35 @@
 
       dsetname = 'core_sym'
       call hwrite_integer(file_id, dsetname, idims, itemp)
+
+! version
+
+      itemp(1)=1       ! hack: send as single element array in order to pass type checking
+
+      dsetname = 'version'
+      call hwrite_integer(file_id, dsetname, idims, itemp)
+
+! core map
+
+      idims(:)=0     ! clear
+      idims(1)=3
+      idims(2)=3
+
+      dsetname = 'core_map'
+      call hwrite_integer(file_id, dsetname, idims, mapcore)
+
+! axial mesh
+
+      do n=1, 10
+        axial(n)=dble(n)*10.0d0
+      enddo
+
+      idims(:)=0     ! clear
+      idims(1)=10
+
+      dsetname = 'axial_mesh'
+      call hwrite_double(file_id, dsetname, idims, axial)
+
 
 ! title string
 
@@ -223,7 +256,7 @@
 
       call h5fclose_f(file_id, ierror)
 
-      write (*,*) 'finished writing file'
+      write (*,'(2a)') ' finished writing file: ', trim(filename)
 
       deallocate (xkeff)
       deallocate (xboron)
