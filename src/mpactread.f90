@@ -359,9 +359,11 @@
 
 ! deallocate memory and stop
 
-      deallocate (pin2)
-      deallocate (power)
-      deallocate (powertemp)
+      if (allocated(pin2)) then  ! protect from missing statepoints
+        deallocate (pin2)
+        deallocate (power)
+        deallocate (powertemp)
+      endif
 
       deallocate (mapcore)
       deallocate (xlabel,ylabel)
