@@ -151,9 +151,13 @@
       isym=-100
       iver=-100
 
+!*** top level eigenvalue should not be here, it is a mistake
       dataset='keff'
-      call read_double(file_id, dataset, xkeff)  ! *** should not be here
-      if (ifdebug) write (*,*) 'debug: xkeff = ', xkeff
+      call h5lexists_f(file_id, dataset, ifxst, ierror)
+      if (ifxst) then
+        call read_double(file_id, dataset, xkeff)  ! *** should not be here
+        write (*,*) 'warning: found top level keff = ', xkeff
+      endif
 
       dataset='core_sym'
       call read_integer(file_id, dataset, isym)
