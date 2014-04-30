@@ -1,4 +1,4 @@
 # Standard ignores
-.o
-.mod
-.exe
+*.o
+*.mod
+*.exe
