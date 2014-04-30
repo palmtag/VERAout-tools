@@ -1,0 +1,39 @@
+#
+#  VERAout-tools
+#
+# Specify Location of HDF5 binaries (with include/ and lib/ underneath)
+HDF5=/opt/hdf5
+
+# Compiler
+# Use the HDF Fortran compiler wrapper....
+FC = $(HDF5)/bin/h5fc
+
+# Flags for gfortran....
+FFLAGS   = -Wall -fbacktrace
+
+.SUFFIXES:
+.SUFFIXES: .o .f90 .exe
+
+COBJ=Mod_hdftools.o Mod_input.o coreread.o readdata.o
+
+all:    hunittest.exe makehdf.exe mpactread.exe
+
+mpactread.exe: Mod_hdftools.o mpactread.o
+	$(FC) $(FFLAGS) Mod_hdftools.o mpactread.o -o $@
+
+hunittest.exe: Mod_hdftools.o hunittest.o
+	$(FC) $(FFLAGS) Mod_hdftools.o hunittest.o -o $@
+
+makehdf.exe: Mod_hdftools.o makehdf.o
+	$(FC) $(FFLAGS) Mod_hdftools.o makehdf.o -o $@
+
+.f90.o:
+	$(FC) $(FFLAGS) -c $*.f90
+
+clean:
+	rm -f *.o *.exe *.mod dsetunit.h5
+
+mpactread.o : Mod_hdftools.o
+hunittest.o : Mod_hdftools.o
+makehdf.o : Mod_hdftools.o
+
