@@ -5,12 +5,12 @@ HDF Tools to post-process VERA output files
 
 
 
-Example: How to install HDF5 Library on your computer
-=====================================================
+#### Example: How to install HDF5 Library on your computer
 
 Download latest HDF5 source:
    http://www.hdfgroup.org/HDF5/release/obtain5.html
 
+```
 All:
 
   HVER=hdf5-1.8.12    # latest source on 2014/04/29
@@ -33,5 +33,5 @@ Cygwin:
   make
   make check
   make install
-
+```
 
