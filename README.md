@@ -6,7 +6,7 @@ HDF Tools to post-process VERA output files
 VERA stands for the "Virtual Environment for Reactor Analysis" and is 
 a product of the Consortium for Advanced Simulation of LWR's (CASL).
 
-More information can be found at [https://www.casl.gov]
+More information can be found at [http://www.casl.gov]
 
 This repository contains the following source files:
 
