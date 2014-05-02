@@ -10,6 +10,7 @@
 !=======================================================================
 !
 !  2014/04/28 - draft 1
+!  2015/05/01 - update for VERAOUT version 1
 !
 !-----------------------------------------------------------------------
       program mpactread
@@ -25,13 +26,14 @@
       integer            :: itype
       integer            :: ndim         ! temp variable
       integer            :: idim(10)     ! temp variable
-      integer            :: nstate       ! statepoint number
+      integer            :: nstate=0     ! statepoint number
 
       logical            :: ifxst
       logical            :: ifdebug=.false. ! debug flag
+      logical            :: ifoldstate=.false.
 
       character(len=80)  :: dataset         ! HDF dataset name
-      character(len=10)  :: group_name
+      character(len=12)  :: group_name
 
       integer(hid_t)     :: file_id
 
@@ -49,12 +51,15 @@
 
       real(8)  :: xkeff                     ! eigenvalue
       real(8)  :: pinmax                    ! peak 3D pin
+      real(8)  :: rated_power               ! rated flow
+      real(8)  :: rated_flow                ! rated power 
 
       real(8), allocatable :: axial(:)      ! axial elevations
       real(8), allocatable :: pin2 (:,:,:)  ! 2d collapsed pin powers
       real(8), allocatable :: powertemp(:,:,:,:)
       real(8), allocatable :: power(:,:,:,:)
 
+      character(len=80)  :: title           ! Problem title
       character(len=2), allocatable :: xlabel(:)  ! assembly map labels
       character(len=2), allocatable :: ylabel(:)  ! assembly map labels
 
@@ -129,26 +134,8 @@
 !--------------------------------------------------------------------------------
 ! Read top level HDF data
 !--------------------------------------------------------------------------------
-!  DATASET "axial_mesh" {
-!  DATASET "core_map" {
-!  DATASET "core_sym" {
-!  DATASET "pin_volumes" {
-!  DATASET "version" {
-
-!? DATASET "keff" {
-!? DATASET "pin_powers" {
-
-!--------------------------------------------------------------------------------
-! Read Eigenvalue and other scalers
-!--------------------------------------------------------------------------------
-
-      idim(:)=0
-      naxial=0          ! number of axial edit bounds
-      icore=0           ! number of assemblies across
-      jcore=0           ! number of assemblies across
 
       xkeff=-100.0d0
-      isym=-100
       iver=-100
 
 !*** top level eigenvalue should not be here, it is a mistake
@@ -159,16 +146,66 @@
         write (*,*) 'warning: found top level keff = ', xkeff
       endif
 
-      dataset='core_sym'
-      call read_integer(file_id, dataset, isym)
+! version
 
-      dataset='version'
+      dataset='veraout_version'
       call read_integer(file_id, dataset, iver)
 
-      if (ifdebug) write (*,*) 'debug: isym  = ', isym
-      if (ifdebug) write (*,*) 'debug: iver  = ', iver
+! title
 
-      dataset='core_map'
+      title=' '
+
+      dataset='title'
+      call read_string(file_id, dataset, title)
+
+      write (*,*)
+      write (*,'(2a)')     ' Title: ', trim(title)
+      write (*,'(a,i2)') ' VERAOUT version ', iver
+      write (*,*)
+
+!-------------------
+!  Read CORE group
+!-------------------
+
+      isym=-100
+      idim(:)=0
+      naxial=0          ! number of axial edit bounds
+      icore=0           ! number of assemblies across
+      jcore=0           ! number of assemblies across
+
+! check of CORE group exists (group may not exist on old MPACT files and all data will be in root)
+
+      group_name='/CORE/'
+      call h5lexists_f(file_id, group_name, ifxst, ierror)
+      if (.not.ifxst) then
+        group_name=' '
+        write (*,*) 'CORE group not found - is this an old MPACT file?'
+      endif
+
+!! no need to open group on read???
+
+      dataset=trim(group_name)//'core_sym'
+      call read_integer(file_id, dataset, isym)
+
+!--- rated power and flow
+
+      rated_power=0.0d0   ! default
+      rated_flow =0.0d0   ! default
+
+      dataset=trim(group_name)//'rated_power'
+      call read_double(file_id, dataset, rated_power)
+
+      dataset=trim(group_name)//'rated_flow'
+      call read_double(file_id, dataset, rated_flow)
+
+      write (*,*)
+      write (*,'(a,i2)')    ' core symmetry  isym  = ', isym
+      write (*,'(a,f12.4)') ' rated power ', rated_power
+      write (*,'(a,f12.4)') ' rated flow  ', rated_flow
+
+!--- core map
+
+      dataset=trim(group_name)//'core_map'
       call h5info(file_id, dataset, itype, ndim, idim)
       if (ndim.ne.2) stop 'invalid dimensions in core_map'
       icore=idim(1)
@@ -185,21 +222,48 @@
 
 !--- axial mesh
 
-      dataset='axial_mesh'
+      dataset=trim(group_name)//'axial_mesh'
       call h5info(file_id, dataset, itype, ndim, idim)
       if (ndim.ne.1) stop 'invalid dimensions in axial_mesh'
-      naxial=idim(1)
-      if (ifdebug) write (*,*) 'debug: naxial = ', naxial
+      naxial=idim(1)   ! actually naxial+1
+      if (ifdebug) write (*,*) 'debug: naxial+1 = ', naxial
       allocate (axial(naxial))
       call read_double1d(file_id, dataset, naxial, n, axial)   ! n will be set to naxial
-      if (n.ne.naxial) stop 'error reading axial'
+      if (n.ne.naxial) then
+         write (*,*) 'found    ', n
+         write (*,*) 'expecting', naxial+1
+         stop 'error reading axial'
+      endif
+      naxial=naxial-1    ! decrease to match number of levels instead of boundaries
+
+      if (naxial.eq.0) then   ! fixup OLD MPACT
+        write (*,*) 'ERROR in axial edits - is this an old broken MPACT file?'
+        naxial=1
+        axial(1)=0.0d0
+        axial(2)=1.0d0
+      endif
 
       write (*,'(/,a)') ' Axial Edit Boundaries'
-      do j=1, naxial
-        write (*,'(i5,20f12.4)') j, axial(j)
+      do j=1, naxial+1
+        write (*,'(i5,20f12.4)') j-1, axial(j)
       enddo
       if (naxial.eq.0) then
         write (*,*) '*** warning: no axial edits found ****'
+      endif
+
+      write (*,'(a,f12.4)') ' total core height = ', axial(naxial+1)-axial(1)
+      write (*,*)
+
+      do j=1, naxial
+        axial(j)=axial(j+1)-axial(j)   ! convert to deltas
+      enddo 
+      axial(naxial+1)=0.0d0
+
+      if (ifdebug) then
+        write (*,*) 'axial deltas'
+        do j=1, naxial+1
+          write (*,'(i5,20f12.4)') j, axial(j)
+        enddo
       endif
 
 !--- temp define edit labels
@@ -223,22 +287,37 @@
         write (ylabel(j),'(i2.2)') j
       enddo
 
-!***  dataset='pin_volumes'      ****
+!--- close group (if opened)
 
-!--------------------------------------------------------------------------------
-! Read statepoint data
-!--------------------------------------------------------------------------------
+!!    if (group_name.ne.' ') then
+!!      call h5gclose_f (group_id, ierror)
+!!      if (ierror.ne.0) stop 'error closing group'
+!!    endif
+
+
+!---------------------
+!  Read STATE groups
+!---------------------
+
+!--- check if this file uses an old mpact STATE format
+
+      group_name='/STATE_1/'
+      call h5lexists_f(file_id, group_name, ifxst, ierror)
+      if (ifxst) ifoldstate=.true.
 
 ! 40 format (/,'--------------------------',&
 !            /,'  Reading statepoint ', i0, &
 !            /,'--------------------------')
 
-      dataset='/STATE_n/'
       nstate=0
       do
         nstate=nstate+1
 
-        write (group_name,'(a,i0,a)') '/STATE_', nstate, '/'   ! *** needs to be i4.4 when mpact is fixed
+        if (ifoldstate) then
+          write (group_name,'(a,i0,a)') '/STATE_', nstate, '/'
+        else
+          write (group_name,'(a,i4.4,a)') '/STATE_', nstate, '/'
+        endif
         if (ifdebug) write (*,*) 'debug: state= ', group_name
 
 !--- check if statepoint exists
@@ -315,9 +394,11 @@
 
         write (*,'(a, f12.7)') ' keff =', xkeff
 
-        call collapse(npin, kd, nassm, power, axial, pin2, pinmax)
+        call collapse(npin, kd, nassm, power, axial, pin2, pinmax, icore, jcore, mapcore)
 
 !--- save statepoint values
+
+        if (nstate.gt.maxstate) stop 'maxstate exceeded - increase and recompile'
 
         state_xkeff(nstate)=xkeff
         state_pinmax(nstate)=pinmax
@@ -377,9 +458,11 @@
 !  Collapse 3D edits to 2D and 1D
 !
 !=======================================================================
-      subroutine collapse(npin, kd, nassm, power, axial, pin2, pinmax)
+      subroutine collapse(npin, kd, nassm, power, axial, pin2, pinmax, icore, jcore, mapcore)
       implicit none
       integer, intent(in) :: npin, kd, nassm
+      integer, intent(in) :: icore, jcore
+      integer, intent(in) :: mapcore(icore,jcore)
       real(8), intent(in) :: power(npin,npin,kd,nassm)
       real(8), intent(in) :: axial(kd)
       real(8), intent(out):: pin2(npin,npin,nassm)
@@ -388,58 +471,119 @@
 !--- local
 
       integer :: i, j, k
-      integer :: ia
-      integer :: kmin(4)
-      integer :: kmax(4)
+      integer :: ia, ja, na
+      integer :: k3min(4)
+      integer :: k3max(4)
+      integer :: k2min(3)
+      integer :: k2max(3)
       real(8) :: pp
-      real(8) :: zave
-      real(8) :: cmin, cmax
+      real(8) :: zave, zrod
+      real(8) :: c3min, c3max
+      real(8) :: c2min, c2max
+      real(8) :: cave, clen
 
       pin2(:,:,:)=0.0d0
 
-!--- collapse pin powers to 2D
+      c3max=0.0d0        ! 3D core max
+      c3min=1.0d20       ! 3D core min
+      c2max=0.0d0        ! 2D core max
+      c2min=1.0d20       ! 2D core min
+      cave=0.0d0         ! core average
+      clen=0.0d0         ! core fuel length
+      k3max(:)=0         ! 3D core max i, j, k, n
+      k3min(:)=0         ! 3D core min i, j, k, n
+      k2max(:)=0         ! 2D core max i, j, n
+      k2min(:)=0         ! 2D core min i, j, n
 
-      cmax=0.0d0         ! core max
-      cmin=1.0d20        ! core min
-      kmax(:)=0          ! core max i, j, k, n
-      kmin(:)=0          ! core min i, j, k, n
+!--- check 3D normalization - loop over mapcore in case symmetry was used
 
-      do ia=1, nassm     ! loop over assemblies
+
+      do ja=1, jcore     ! loop over assemblies in full-core
+        do ia=1, icore   ! loop over assemblies in full-core
+        na=mapcore(ia,ja)
+        if (na.eq.0) cycle
+
         do j=1, npin
           do i=1, npin
-            zave=0.0d0   ! axial height with power
             do k=1, kd   ! loop over axial levels
-              pp=power(i,j,k,ia)
+              pp=power(i,j,k,na)
               if (pp.gt.0.0d0) then
-                pin2(i,j,ia)=pin2(i,j,ia)+pp*axial(k)
-                zave=zave+axial(k)
-                if (pp.lt.cmin) then
-                  cmin=pp
-                  kmin(1)=i
-                  kmin(2)=j
-                  kmin(3)=k
-                  kmin(4)=ia
+                cave=cave+axial(k)*pp
+                clen=clen+axial(k)
+                if (pp.lt.c3min) then
+                  c3min=pp
+                  k3min(1)=i
+                  k3min(2)=j
+                  k3min(3)=k
+                  k3min(4)=na
                 endif
-                if (pp.gt.cmax) then
-                  cmax=pp
-                  kmax(1)=i
-                  kmax(2)=j
-                  kmax(3)=k
-                  kmax(4)=ia
+                if (pp.gt.c3max) then
+                  c3max=pp
+                  k3max(1)=i
+                  k3max(2)=j
+                  k3max(3)=k
+                  k3max(4)=na
                 endif
               endif
             enddo
-            if (zave.gt.0.0d0) pin2(i,j,ia)=pin2(i,j,ia)/zave
           enddo
         enddo
+
       enddo      ! ia
+      enddo      ! ja
 
-      write (*,180) 'max', cmax, kmax(:)
-      write (*,180) 'min', cmin, kmin(:)
+      if (clen.gt.0.0d0) cave=cave/clen
 
-      pinmax=cmax   ! save peak 3D pin
+      if (abs(cave-1.0d0).gt.1.0d-6) then
+         write (*,*) 'WARNING: pin powers do not appear to be normalized correctly'
+         write (*,*) 'total core length ', clen
+         write (*,*) 'core average power of linear power ', cave
+      endif
+
+      write (*,180) 'max', c3max, k3max(:)
+      write (*,180) 'min', c3min, k3min(:)
+
+      pinmax=c3max   ! save peak 3D pin
 
   180 format (' 3D ',a,' pin in core =', f10.4,' at (i,j,k,na)', 4i4)
+  190 format (' 2D ',a,' pin in core =', f10.4,' at (i,j,na)  ', 2i4,4x,i4)
+
+!--- collapse pin powers to 2D
+
+      do na=1, nassm     ! loop over assemblies
+        do j=1, npin
+          do i=1, npin
+            zrod=0.0d0
+            zave=0.0d0   ! 2D axial height with power
+            do k=1, kd   ! loop over axial levels
+              pp=power(i,j,k,na)
+              if (pp.gt.0.0d0) then
+                zrod=zrod+axial(k)*pp
+                zave=zave+axial(k)
+              endif
+            enddo
+            if (zave.gt.0.0d0) then
+              pin2(i,j,na)=zrod/zave
+              pp=pin2(i,j,na)
+              if (pp.lt.c2min) then
+                c2min=pp
+                k2min(1)=i
+                k2min(2)=j
+                k2min(3)=na
+              endif
+              if (pp.gt.c2max) then
+                c2max=pp
+                k2max(1)=i
+                k2max(2)=j
+                k2max(3)=na
+              endif
+            endif
+          enddo
+        enddo
+      enddo      ! na
+
+      write (*,190) 'max', c2max, k2max(:)
+      write (*,190) 'min', c2min, k2min(:)
 
       return
       end subroutine collapse
@@ -513,7 +657,6 @@
 !
 !=======================================================================
       subroutine print2d_assm_map(npin, nassm, pow2, icore, jcore, mapcore, xlabel, ylabel)
-!!    use mod_input, only : icoresize, mapcore, xlabel, ylabel
       implicit none
       integer, intent(in) :: npin, nassm
       integer, intent(in) :: icore, jcore
@@ -528,6 +671,10 @@
       real(8)          :: pmin, pmax
       real(8)          :: pp
       real(8)          :: passm(nassm)  ! automatic
+
+      logical  :: ifbw  ! flag if assemblies have different number of pins
+
+      ifbw=.false.
 
       write (*,*)
 
@@ -549,9 +696,7 @@
         enddo
         if (nn.gt.0) passm(na)=passm(na)/dble(nn)
         if (nnsave.eq.0) nnsave=nn    ! save first time
-        if (nn.ne.nnsave) then
-           write (*,*) 'ERROR: Assemblies have different pin counts', nn, nnsave
-        endif
+        if (nn.ne.nnsave) ifbw=.true.
       enddo
 
 !--- calculate average - use mapcore in case this is qtr-core
@@ -575,8 +720,12 @@
 
       if (nn.gt.0) pp=pp/dble(nn)
       write (*,*) 'number of assemblies in full-core', nn
-      write (*,130) 'average', pp
-      if (abs(pp-1.0d0).gt.0.0001) write (0,*) '***** check normalization *****'
+      if (ifbw) then
+        write (*,*) 'WARNING: average of assemblies cannot be calculated because assemblies have different number of rods'
+      else
+        write (*,130) 'average', pp
+        if (abs(pp-1.0d0).gt.0.0001) write (0,*) '***** check normalization *****'
+      endif
       write (*,130) 'maximum', pmax
       write (*,130) 'minimum', pmin
   130 format (1x,a,' assembly power  ', f8.4)
