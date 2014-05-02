@@ -5,8 +5,10 @@ HDF Tools to post-process VERA output files
 
 VERA stands for the "Virtual Environment for Reactor Analysis" and is 
 a product of the Consortium for Advanced Simulation of LWR's (CASL).
+More information about CASL can be found at [http://www.casl.gov]
 
-More information can be found at [http://www.casl.gov]
+The latest version of this repository can be found at 
+[https://github.com/palmtag/VERAout-tools]
 
 This repository contains the following source files:
 
@@ -18,10 +20,11 @@ This repository contains the following source files:
 
 #### Hint: How to install HDF5 Library on your computer
 
-You must have a fortran compiler installed on your system.
-The preference is gfortran.
+This section contains information on installing HDF5 on your computer system.
 
-Download latest HDF5 source:
+You must have a fortran compiler installed on your system.
+
+Information on the latest HDF5 source can be found at:
    http://www.hdfgroup.org/HDF5/release/obtain5.html
 
 ```
@@ -39,7 +42,7 @@ Linux:
   make
   make check
   sudo make install
-  dir /opt
+  ls -Fl /opt/hdf5
 
 Cygwin:
 
