@@ -10,10 +10,9 @@
 #
 HDF5=$(CRAY_HDF5_DIR)/intel/130
 
-HDFOPT=-L$(HDF5)/lib -lhdf5 -lhdf5_fortran -ldl -lm
-
 FC  = ifort
-FFLAGS = -O0 -traceback
+FFLAGS = -O0 -traceback -I$(HDF5)/include
+HDFOPT=-L$(HDF5)/lib -lhdf5 -lhdf5_fortran -ldl -lm
 
 .SUFFIXES:
 .SUFFIXES: .o .f90 .exe
@@ -21,16 +20,16 @@ FFLAGS = -O0 -traceback
 all:    mpactread.exe hunittest.exe makehdf.exe
 
 mpactread.exe: Mod_hdftools.o mpactread.o
-	$(FC) -I$(HDF5)/include $(FFLAGS) Mod_hdftools.o mpactread.o $(HDFOPT) -o $@
+	$(FC) $(FFLAGS) Mod_hdftools.o mpactread.o $(HDFOPT) -o $@
 
 hunittest.exe: Mod_hdftools.o hunittest.o
-	$(FC) -I$(HDF5)/include $(FFLAGS) Mod_hdftools.o hunittest.o $(HDFOPT) -o $@
+	$(FC) $(FFLAGS) Mod_hdftools.o hunittest.o $(HDFOPT) -o $@
 
 makehdf.exe: Mod_hdftools.o makehdf.o
-	$(FC) -I$(HDF5)/include $(FFLAGS) Mod_hdftools.o makehdf.o $(HDFOPT) -o $@
+	$(FC) $(FFLAGS) Mod_hdftools.o makehdf.o $(HDFOPT) -o $@
 
 .f90.o:
-	$(FC) $(FFLAGS) -I$(HDF5)/include -c $*.f90
+	$(FC) $(FFLAGS) -c $*.f90
 
 clean:
 	rm -f *.o *.exe *.mod dsetunit.h5
