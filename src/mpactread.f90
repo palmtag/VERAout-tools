@@ -142,14 +142,14 @@
       dataset='keff'
       call h5lexists_f(file_id, dataset, ifxst, ierror)
       if (ifxst) then
-        call read_double(file_id, dataset, xkeff)  ! *** should not be here
+        call hdf5_read_double(file_id, dataset, xkeff)  ! *** should not be here
         write (*,*) 'warning: found top level keff = ', xkeff
       endif
 
 ! version
 
       dataset='veraout_version'
-      call read_integer(file_id, dataset, iver)
+      call hdf5_read_integer(file_id, dataset, iver)
 
 ! title
 
@@ -185,7 +185,7 @@
 !! no need to open group on read???
 
       dataset=trim(group_name)//'core_sym'
-      call read_integer(file_id, dataset, isym)
+      call hdf5_read_integer(file_id, dataset, isym)
 
 !--- rated power and flow
 
@@ -193,10 +193,10 @@
       rated_flow =0.0d0   ! default
 
       dataset=trim(group_name)//'rated_power'
-      call read_double(file_id, dataset, rated_power)
+      call hdf5_read_double(file_id, dataset, rated_power)
 
       dataset=trim(group_name)//'rated_flow'
-      call read_double(file_id, dataset, rated_flow)
+      call hdf5_read_double(file_id, dataset, rated_flow)
 
       write (*,*)
       write (*,'(a,i2)')    ' core symmetry  isym  = ', isym
@@ -213,7 +213,7 @@
       if (ifdebug) write (*,*) 'debug: icore = ', icore
       if (ifdebug) write (*,*) 'debug: jcore = ', jcore
       allocate (mapcore(icore,jcore))
-      call read_integer2d(file_id, dataset, icore, jcore, mapcore)
+      call hdf5_read_integer(file_id, dataset, icore, jcore, mapcore)
 
       write (*,'(/,a)') ' Core Map:'
       do j=1, jcore
@@ -228,7 +228,7 @@
       naxial=idim(1)   ! actually naxial+1
       if (ifdebug) write (*,*) 'debug: naxial+1 = ', naxial
       allocate (axial(naxial))
-      call read_double1d(file_id, dataset, naxial, n, axial)   ! n will be set to naxial
+      call hdf5_read_double(file_id, dataset, naxial, n, axial)   ! n will be set to naxial
       if (n.ne.naxial) then
          write (*,*) 'found    ', n
          write (*,*) 'expecting', naxial+1
@@ -333,7 +333,7 @@
 !--- eigenvalue
 
         dataset=trim(group_name)//'keff'
-        call read_double(file_id, dataset, xkeff)
+        call hdf5_read_double(file_id, dataset, xkeff)
 
         if (ifdebug) write (*,*) 'debug: keff = ', xkeff
 
@@ -376,7 +376,7 @@
 !--- array order was modified 12/6/2013 so that hdfview and h5dump look correct
 
         dataset=trim(group_name)//'pin_powers'
-        call read_double4d(file_id, dataset, nassm, kd, npin, npin, powertemp)
+        call hdf5_read_double(file_id, dataset, nassm, kd, npin, npin, powertemp)
 
 !--- move power to old order
 

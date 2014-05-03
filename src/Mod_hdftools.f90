@@ -17,16 +17,19 @@
 !
 !  Routines to read:
 !
-!     read_double   (file_id, dataset, xvar)
-!     read_double1d (file_id, dataset, max_idm, idm, xvar)
-!     read_double2d (file_id, dataset, idm, jdm, xvar)
-!     read_double4d (file_id, dataset, idm1, idm2, idm3, idm4, xvar)
-!     read_integer  (file_id, dataset, ivar)
-!     read_integer1d(file_id, dataset, max_idm, idm, ivar)
-!     read_integer2d(file_id, dataset, idm, jdm, ivar)
+!     hdf5_read_double  (generic subroutine)
+!        read_double   (file_id, dataset, xvar)
+!        read_double1d (file_id, dataset, max_idm, idm, xvar)
+!        read_double2d (file_id, dataset, idm, jdm, xvar)
+!        read_double4d (file_id, dataset, idm1, idm2, idm3, idm4, xvar)
 !     read_string   (file_id, dataset, stringout)
 !     read_string1d (file_id, dataset, stringout, maxsize, nsize)
 !
+!     hdf5_read_integer  (generic subroutine)
+!        read_integer  (file_id, dataset, ivar)
+!        read_integer1d(file_id, dataset, max_idm, idm, ivar)
+!        read_integer2d(file_id, dataset, idm, jdm, ivar)
+
 !  Routines to write:
 !
 !     hwrite_real   (file_id, dataset, idims, xvar)
@@ -60,6 +63,28 @@
       logical :: ifdebug=.false.    ! common debug flag for all subroutines
 
       private :: ifdebug
+
+      private :: read_integer
+      private :: read_integer1d
+      private :: read_integer2d
+
+      private :: read_double
+      private :: read_double1d
+      private :: read_double2d
+      private :: read_double4d
+
+!--- define generic interface to read datasets
+
+      interface hdf5_read_integer
+        module procedure read_integer, read_integer1d, read_integer2d
+      end interface hdf5_read_integer
+
+      interface hdf5_read_double
+        module procedure read_double, read_double1d, read_double2d, read_double4d
+      end interface hdf5_read_double
+
+! *** TO-DO: Add read_double3d
+! *** TO-DO: Create generic interface to write data
 
       contains
 

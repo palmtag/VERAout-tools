@@ -200,7 +200,7 @@
       dsetname = 'power0d'
       power0d=0.0d0        ! clear before read
 
-      call read_double (file_id, dsetname, power0d)
+      call hdf5_read_double (file_id, dsetname, power0d)
       xerr=abs(power0d-3.14d0)
       if (xerr.lt.tol) then
         write (*,220) 'read_double', 'PASS'
@@ -217,7 +217,7 @@
       dsetname = 'power1d'
       power1d=0.0d0        ! clear before read
 
-      call read_double1d (file_id, dsetname, num1d, i, power1d)
+      call hdf5_read_double (file_id, dsetname, num1d, i, power1d)
       if (i.ne.num1d) then
          write (*,*) 'read 1D array size ', i
          write (*,*) 'expecting          ', num1d
@@ -242,7 +242,7 @@
       dsetname = 'power2d'
       power2d=0.0d0
 
-      call read_double2d (file_id, dsetname, nx, ny, power2d)
+      call hdf5_read_double (file_id, dsetname, nx, ny, power2d)
       nbad=0
       do j=1, ny
         do i=1, nx
@@ -263,7 +263,7 @@
       dsetname = 'int0d'
       int0d=0        ! clear before read
 
-      call read_integer (file_id, dsetname, int0d)
+      call hdf5_read_integer (file_id, dsetname, int0d)
       kerr=int0d-3140
       if (kerr.eq.0) then
         write (*,220) 'read_integer', 'PASS'
@@ -280,7 +280,7 @@
       dsetname = 'int1d'
       int1d=0        ! clear before read
 
-      call read_integer1d (file_id, dsetname, num1d, i, int1d)
+      call hdf5_read_integer (file_id, dsetname, num1d, i, int1d)
       if (i.ne.num1d) then
          write (*,*) 'read 1D array size ', i
          write (*,*) 'expecting          ', num1d
@@ -305,7 +305,7 @@
       dsetname = 'int2d'
       int2d=0
 
-      call read_integer2d (file_id, dsetname, nx, ny, int2d)
+      call hdf5_read_integer (file_id, dsetname, nx, ny, int2d)
       nbad=0
       do j=1, ny
         do i=1, nx
