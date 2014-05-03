@@ -22,14 +22,16 @@
       integer(hsize_t) :: idims(10)     ! Dataset dimensions (2D array)
 
       integer     :: num1d
-      integer     :: nx, ny
-      integer     :: i, j
+      integer     :: nx, ny, nz, na
+      integer     :: i, j, k, l
       real(8)     :: xerr
       real(8)     :: tol=1.0d-8
 
       real(8)     :: power0d, atemp(1)
       real(8), allocatable :: power1d(:)
       real(8), allocatable :: power2d(:,:)
+      real(8), allocatable :: power3d(:,:,:)
+      real(8), allocatable :: power4d(:,:,:,:)
 
       integer     :: int0d, itemp(1)
       integer, allocatable :: int1d(:)
@@ -51,6 +53,8 @@
       num1d=44
       nx=4
       ny=6
+      nz=2
+      na=3
 
       power0d=3.14d0
 
@@ -64,6 +68,26 @@
         do i=1, nx
            power2d(i,j)=i*100.0d0+j+0.1d0
         enddo
+      enddo
+
+      allocate (power3d(nx,ny,nz))
+      do k=1, nz
+        do j=1, ny
+          do i=1, nx
+            power3d(i,j,k)=k*1000.0d0 + i*100.0d0+j+0.1d0
+          enddo
+        enddo
+      enddo
+
+      allocate (power4d(nx,ny,nz,na))
+      do l=1, na
+      do k=1, nz
+        do j=1, ny
+          do i=1, nx
+            power4d(i,j,k,l)=l*10000.0d0 + k*1000.0d0 + i*100.0d0 + j+0.1d0
+          enddo
+        enddo
+      enddo
       enddo
 
       int0d=3140
@@ -124,6 +148,27 @@
 
       dsetname = 'power2d'
       call hwrite_double(file_id, dsetname, idims, power2d)
+
+!--- call wrapper routine to write double 3D array
+
+      idims(:)=0     ! clear
+      idims(1)=nx
+      idims(2)=ny
+      idims(3)=nz
+
+      dsetname = 'power3d'
+      call hwrite_double(file_id, dsetname, idims, power3d)
+
+!--- call wrapper routine to write double 4D array
+
+      idims(:)=0     ! clear
+      idims(1)=nx
+      idims(2)=ny
+      idims(3)=nz
+      idims(4)=na
+
+      dsetname = 'power4d'
+      call hwrite_double(file_id, dsetname, idims, power4d)
 
 !---------------
 
@@ -256,6 +301,54 @@
         write (*,*) 'number of errors ', nbad
         nfail=nfail+1
         write (*,220) 'read_double2d', 'FAIL'
+      endif
+
+!--- read 3D array of double
+
+      dsetname = 'power3d'
+      power3d=0.0d0
+
+      call hdf5_read_double (file_id, dsetname, nx, ny, nz, power3d)
+      nbad=0
+      do k=1, nz
+      do j=1, ny
+        do i=1, nx
+          xerr=abs(power3d(i,j,k)-(k*1000.0d0+i*100.0d0+j+0.1d0))
+          if (xerr.gt.tol) nbad=nbad+1
+        enddo
+      enddo
+      enddo
+      if (nbad.eq.0) then
+        write (*,220) 'read_double3d', 'PASS'
+      else
+        write (*,*) 'number of errors ', nbad
+        nfail=nfail+1
+        write (*,220) 'read_double3d', 'FAIL'
+      endif
+
+!--- read 4D array of double
+
+      dsetname = 'power4d'
+      power4d=0.0d0
+      
+      call hdf5_read_double (file_id, dsetname, nx, ny, nz, na, power4d)
+      nbad=0
+      do l=1, na
+      do k=1, nz
+      do j=1, ny
+        do i=1, nx
+          xerr=abs(power4d(i,j,k,l)-(l*10000.0d0+k*1000.0d0+i*100.0d0+j+0.1d0))
+          if (xerr.gt.tol) nbad=nbad+1
+        enddo
+      enddo
+      enddo
+      enddo
+      if (nbad.eq.0) then
+        write (*,220) 'read_double4d', 'PASS'
+      else
+        write (*,*) 'number of errors ', nbad
+        nfail=nfail+1
+        write (*,220) 'read_double4d', 'FAIL'
       endif
 
 !--- read 0D array of integer
