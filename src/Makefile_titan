@@ -17,10 +17,13 @@ HDFOPT=-L$(HDF5)/lib -lhdf5 -lhdf5_fortran -ldl -lm
 .SUFFIXES:
 .SUFFIXES: .o .f90 .exe
 
-all:    mpactread.exe hunittest.exe makehdf.exe
+all:    hunittest.exe makehdf.exe mpactread.exe ctfread.exe
 
 mpactread.exe: Mod_hdftools.o mpactread.o
 	$(FC) $(FFLAGS) Mod_hdftools.o mpactread.o $(HDFOPT) -o $@
+
+ctfread.exe: Mod_hdftools.o ctfread.o
+	$(FC) $(FFLAGS) Mod_hdftools.o ctfread.o $(HDFOPT) -o $@
 
 hunittest.exe: Mod_hdftools.o hunittest.o
 	$(FC) $(FFLAGS) Mod_hdftools.o hunittest.o $(HDFOPT) -o $@
@@ -35,6 +38,7 @@ clean:
 	rm -f *.o *.exe *.mod dsetunit.h5
 
 mpactread.o : Mod_hdftools.o
+ctfread.o : Mod_hdftools.o
 hunittest.o : Mod_hdftools.o
 makehdf.o : Mod_hdftools.o
 

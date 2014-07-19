@@ -9,21 +9,25 @@ HDF5=/opt/hdf5
 FC = $(HDF5)/bin/h5fc
 
 # Flags for gfortran....
-FFLAGS   = -Wall -fbacktrace
+FFLAGS = -Wall -fbacktrace -fbounds-check
+HDFOPT =
 
 .SUFFIXES:
 .SUFFIXES: .o .f90 .exe
 
-all:    hunittest.exe makehdf.exe mpactread.exe
+all:    hunittest.exe makehdf.exe mpactread.exe ctfread.exe
 
 mpactread.exe: Mod_hdftools.o mpactread.o
-	$(FC) $(FFLAGS) Mod_hdftools.o mpactread.o -o $@
+	$(FC) $(FFLAGS) Mod_hdftools.o mpactread.o $(HDFOPT) -o $@
+
+ctfread.exe: Mod_hdftools.o ctfread.o
+	$(FC) $(FFLAGS) Mod_hdftools.o ctfread.o $(HDFOPT) -o $@
 
 hunittest.exe: Mod_hdftools.o hunittest.o
-	$(FC) $(FFLAGS) Mod_hdftools.o hunittest.o -o $@
+	$(FC) $(FFLAGS) Mod_hdftools.o hunittest.o $(HDFOPT) -o $@
 
 makehdf.exe: Mod_hdftools.o makehdf.o
-	$(FC) $(FFLAGS) Mod_hdftools.o makehdf.o -o $@
+	$(FC) $(FFLAGS) Mod_hdftools.o makehdf.o $(HDFOPT) -o $@
 
 .f90.o:
 	$(FC) $(FFLAGS) -c $*.f90
@@ -32,6 +36,7 @@ clean:
 	rm -f *.o *.exe *.mod dsetunit.h5
 
 mpactread.o : Mod_hdftools.o
+ctfread.o : Mod_hdftools.o
 hunittest.o : Mod_hdftools.o
 makehdf.o : Mod_hdftools.o
 
