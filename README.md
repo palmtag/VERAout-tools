@@ -16,6 +16,7 @@ This repository contains the following source files:
 * hunittest.f90 - Simple program to perform unit tests
 * makehdf.f90 - Simple program to create a sample VERAout file for testing
 * mpactread.f90 - Simple program to read VERAout file created by MPACT
+* ctfread.f90 - Simple program to read HDF output file created by CTF
 
 
 #### Hint: How to install HDF5 Library on your computer
@@ -30,25 +31,18 @@ Information on the latest HDF5 source can be found at:
 ```
 All:
 
-  HVER=hdf5-1.8.12    # latest source on 2014/04/29
+  HVER=hdf5-1.8.13    # latest source on 2014/07/20
   wget http://www.hdfgroup.org/ftp/HDF5/current/src/$HVER.tar.gz
   tar vxfz  $HVER.tar.gz
   cd $HVER
 
 Linux:
 
-  # export F9X=ifort     # add this if using Intel Fortran (not recommended)
+  # export F9X=ifort     # add this if using Intel Fortran
   ./configure --enable-fortran --enable-cxx --prefix=/opt/hdf5
   make
   make check
   sudo make install
-  ls -Fl /opt/hdf5
 
-Cygwin:
-
-  ./configure --enable-fortran --enable-cxx --prefix=/usr/local/lib
-  make
-  make check
-  make install
 ```
 
