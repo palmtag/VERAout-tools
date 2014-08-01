@@ -11,6 +11,7 @@
 !
 !  2014/04/28 - draft 1
 !  2015/05/01 - update for VERAOUT version 1
+!  2015/08/01 - change HDF open statement to read-only
 !
 !-----------------------------------------------------------------------
       program mpactread
@@ -124,7 +125,7 @@
         write (*,'(3a)') 'error: input file ',trim(inputfile),' does not exist'
         stop
       endif
-      call h5fopen_f (inputfile, H5F_ACC_RDWR_F, file_id, ierror)
+      call h5fopen_f (inputfile, H5F_ACC_RDONLY_F, file_id, ierror)   ! read only
       if (ierror.lt.0) then
         write (*,'(3a)') 'error: H5 input file ',trim(inputfile), &
                    ' could not be opened'

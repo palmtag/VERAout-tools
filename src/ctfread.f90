@@ -16,6 +16,8 @@
 !  2014/07/18 - updated power edits to use new W/cm^3 units
 !               (this will likely change again)
 !
+!  2014/09/01 - change HDF open to read only
+!
 !  There are still some issues that need to be worked out:
 !    * There are some cases that have a very small power in non-fuel regions
 !      The user needs to examine the output carefully to make sure the 
@@ -125,7 +127,7 @@
         write (*,'(3a)') 'error: input file ',trim(filename),' does not exist'
         stop
       endif
-      call h5fopen_f (filename, H5F_ACC_RDWR_F, file_id, ierror)
+      call h5fopen_f (filename, H5F_ACC_RDONLY_F, file_id, ierror)  ! read only
       if (ierror.lt.0) then
         write (*,'(3a)') 'error: H5 input file ',trim(filename), &
                    ' could not be opened'
