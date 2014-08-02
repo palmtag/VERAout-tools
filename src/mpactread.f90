@@ -10,8 +10,9 @@
 !=======================================================================
 !
 !  2014/04/28 - draft 1
-!  2015/05/01 - update for VERAOUT version 1
-!  2015/08/01 - change HDF open statement to read-only
+!  2014/05/01 - update for VERAOUT version 1
+!  2014/08/01 - change HDF open statement to read-only
+!             - read exposure values
 !
 !-----------------------------------------------------------------------
       program mpactread
@@ -51,6 +52,7 @@
       integer  :: npin                      ! pin data
 
       real(8)  :: xkeff                     ! eigenvalue
+      real(8)  :: xexpo                     ! exposure   
       real(8)  :: pinmax                    ! peak 3D pin
       real(8)  :: rated_power               ! rated flow
       real(8)  :: rated_flow                ! rated power 
@@ -66,6 +68,7 @@
 
       integer, parameter :: maxstate=200
       real(8)  :: state_xkeff(maxstate)
+      real(8)  :: state_xexpo(maxstate)  ! exposure
       real(8)  :: state_pinmax(maxstate)
 
 ! command line flags
@@ -79,6 +82,7 @@
 
       inputfile=' '
       state_xkeff(:)=0.0d0
+      state_xexpo(:)=0.0d0
       state_pinmax(:)=0.0d0
 
 !----------------------------------------------------------------------
@@ -137,6 +141,7 @@
 !--------------------------------------------------------------------------------
 
       xkeff=-100.0d0
+      xexpo=-100.0d0
       iver=-100
 
 !*** top level eigenvalue should not be here, it is a mistake
@@ -333,6 +338,11 @@
 
 !--- eigenvalue
 
+! read exposure value at this statepoint
+
+        dataset=trim(group_name)//'exposure_GWDMT'
+        call hdf5_read_double(file_id, dataset, xexpo)
+
         dataset=trim(group_name)//'keff'
         call hdf5_read_double(file_id, dataset, xkeff)
 
@@ -393,6 +403,7 @@
 
 !--- collapse
 
+        write (*,'(a, f10.4,a)') ' exposure =', xexpo,' GWD/MT'
         write (*,'(a, f12.7)') ' keff =', xkeff
 
         call collapse(npin, kd, nassm, power, axial, pin2, pinmax, icore, jcore, mapcore)
@@ -402,6 +413,7 @@
         if (nstate.gt.maxstate) stop 'maxstate exceeded - increase and recompile'
 
         state_xkeff(nstate)=xkeff
+        state_xexpo(nstate)=xexpo
         state_pinmax(nstate)=pinmax
 
 !--- print maps
@@ -430,14 +442,14 @@
       nstate=nstate-1   ! decrease due to statepoint check
       write (*,110)
       do n=1, nstate
-        write (*,120) n, state_xkeff(n), state_pinmax(n)
+        write (*,120) n, state_xexpo(n), state_xkeff(n), state_pinmax(n)
       enddo
   110 format (/,'==================================',&
               /,'       Statepoint Summary', &
               /,'==================================',&
-              /,'   N   eigenvalue   pinmax')
+              /,'   N   exposure  eigenvalue   pinmax')
 
-  120 format (i4, f12.5, f10.4)
+  120 format (i4, f10.4, f12.5, f10.4)
 
 ! deallocate memory and stop
 

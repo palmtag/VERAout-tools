@@ -43,7 +43,7 @@
       integer           :: idim4(10)     ! Dataset dimensions (use with h5info)
       integer           :: ndim
 
-      integer :: ll, ii
+      integer :: ll
       integer :: ia
       integer :: itype
       integer :: ierror
@@ -55,6 +55,8 @@
       integer :: npin
       integer :: nnrod    ! number of nodes in rod mesh
       integer :: nstate   ! number of statepoints
+
+      real(8) :: xexp
 
       character(len=12) :: state_name
 
@@ -130,10 +132,24 @@
 !--- find number of statepoints on file
 
       do
+
+! read exposure value at this statepoint
+
+        dataset=trim(state_name)//'exposure_GWDMT'
+        call hdf5_read_double  (file_id, dataset, xexp)
+        write (*,'(2a,f12.5)') trim(dataset), ' exposure ', xexp
+
+! write xmf file
+
+        call write_xmf(npin, npin, naxial, nassm, nnrod, filename, gridfile, nstate, xexp)
+
+! check if the next state exists
+
         call make_state_name(state_name, nstate+1)
         call h5lexists_f(file_id, state_name, ifxst, ierror)
         if (.not.ifxst) exit
         nstate=nstate+1
+
       enddo
       write (*,*) 'nstate=', nstate
 
@@ -147,11 +163,6 @@
       call h5close_f(ierror)
 
 !-----------------------------
-!--- write xmf file(s)
-
-      do ii=1, nstate
-        call write_xmf(npin, npin, naxial, nassm, nnrod, filename, gridfile, ii, nstate)
-      enddo
 
       end
 !=======================================================================
@@ -652,11 +663,11 @@
 !  Subroutine to write XMF file
 !
 !=======================================================================
-      subroutine write_xmf(nx, ny, nz, nassm, nnrod, filename, gridname, ii, nstate)
+      subroutine write_xmf(nx, ny, nz, nassm, nnrod, filename, gridname, nstate, xexp)
       implicit none
       integer, intent(in) :: nx, ny, nz, nassm, nnrod
-      integer, intent(in) :: ii        ! current state number
-      integer, intent(in) :: nstate    ! total number of states
+      integer, intent(in) :: nstate    ! statepoint number
+      real(8), intent(in) :: xexp      ! exposure
       character(len=*), intent(in) :: filename
       character(len=*), intent(in) :: gridname
 
@@ -666,11 +677,7 @@
 
       integer :: io=10
 
-      if (nstate.eq.1) then
-        label_xmf='.xmf'
-      else
-        write (label_xmf,'(".",i0,".xmf")') ii
-      endif
+      write (label_xmf,'(".",i0,".xmf")') nstate
 
       write (0,'(3a)') ' writing XMF file: ',trim(filename)//trim(label_xmf)
 
@@ -688,29 +695,32 @@
 
       write (io,120) 'rod_mesh', nx, ny, nz, nassm, nx, ny, nz, nassm, trim(gridname), '/XMFMESH/ggrod'
 
-      120 format ( '  <Grid Name="',a,'" GridType="Uniform">', &
-                 /,5x,'<Topology TopologyType="Hexahedron" Dimensions="',i0,1x,i0,1x,i0,1x,i0,'">', &
-                 /,6x,'  <DataItem Dimensions="',i0,1x,i0,1x,i0,1x,i0,' 8" NumberType="Int" Format="HDF">', &
-                 /,8x,a,':',a, &
-                 /,6x,'  </DataItem>', &
-                 /,5x,'</Topology>')
+  120 format ( '  <Grid Name="',a,'" GridType="Uniform">', &
+            /,5x,'<Topology TopologyType="Hexahedron" Dimensions="',i0,1x,i0,1x,i0,1x,i0,'">', &
+            /,6x,'  <DataItem Dimensions="',i0,1x,i0,1x,i0,1x,i0,' 8" NumberType="Int" Format="HDF">', &
+            /,8x,a,':',a, &
+            /,6x,'  </DataItem>', &
+            /,5x,'</Topology>')
+
+      write (io,125) xexp
+  125 format (5x,'<Time Value="',f0.3,'" />')
 
 !--- rod node coordinates
 
       write (io,130) nnrod, trim(gridname), '/XMFMESH/xyzrod'
 
-     130 format (5x,'<Geometry Type="XYZ">', &
-               /,8x,'<DataStructure Name="xyz" DataType="Float" Precision="4" ', &
-                         'Dimensions="',i0,' 3" Format="HDF">', &
-               /,8x,a,':',a, &
-               /,8x,'</DataStructure>', &
-               /,5x,'</Geometry>')
+  130 format (5x,'<Geometry Type="XYZ">', &
+            /,8x,'<DataStructure Name="xyz" DataType="Float" Precision="4" ', &
+                      'Dimensions="',i0,' 3" Format="HDF">', &
+            /,8x,a,':',a, &
+            /,8x,'</DataStructure>', &
+            /,5x,'</Geometry>')
 
 !--- rod cell data
 
 !  the following four datasets are for debug purposes and can be removed
 
-      if (ii.eq.1) then
+      if (nstate.eq.1) then
 
         write (io,80) 'ipin'
         write (io,32) nx, ny, nz, nassm        ! 32=integer array
@@ -742,7 +752,7 @@
 
       label_power='pin_powers'
 
-      call make_state_name(state_name, ii)
+      call make_state_name(state_name, nstate)
 
       write (io,80) trim(label_power)
       write (io,30) nx, ny, nz, nassm
