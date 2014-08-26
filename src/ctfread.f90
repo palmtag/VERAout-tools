@@ -18,6 +18,8 @@
 !
 !  2014/09/01 - change HDF open to read only
 !
+!  2014/08/25 - updated power edits to use new W/cm units (hopefully final)
+!
 !  There are still some issues that need to be worked out:
 !    * There are some cases that have a very small power in non-fuel regions
 !      The user needs to examine the output carefully to make sure the 
@@ -81,7 +83,7 @@
 
       filename=' '
 
-      label_power='pin_powers [W per cm^3]'
+      label_power='pin_powers [W per cm]'
       label_tfuel='pin_fueltemps [C]'
 
 !----------------------------------------------------------------------
