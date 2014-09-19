@@ -18,7 +18,9 @@
 !
 !  2014/09/01 - change HDF open to read only
 !
-!  2014/08/25 - updated power edits to use new W/cm units (hopefully final)
+!  2014/08/25 - updated power edits to use new W/cm units (hopefully final time units change)
+!
+!  2014/09/19 - CTF output file changed again!  now the top level is "Simulation Results"
 !
 !  There are still some issues that need to be worked out:
 !    * There are some cases that have a very small power in non-fuel regions
@@ -49,7 +51,8 @@
       logical            :: ifdebug=.true.  ! debug flag
 
       character(len=80)  :: dataset         ! HDF dataset name
-      character(len=12)  :: group_name      ! HDF group name
+      character(len=22)  :: state_name      ! HDF group name for STATE
+      character(len=22)  :: group_name      ! HDF group name for CORE
       character(len=30)  :: label_power     ! power label - for both input and output
       character(len=30)  :: label_tfuel     ! tfuel label - for both input and output
 
@@ -136,105 +139,113 @@
         stop
       endif
 
+!-------------------
+!  Read CORE group
+!-------------------
+
+      group_name='/CORE/'
+      call h5lexists_f(file_id, group_name, ifxst, ierror)
+      if (.not.ifxst) then
+        group_name=' '
+        write (*,*) 'CORE group not found on HDF file - is this an old file?'
+        stop 'CORE group not found on HDF file'
+      endif
+
+!--- read axial heights
+
+      dataset=trim(group_name)//'channel_cell_height [cm]'
+      call h5info(file_id, dataset, itype, ndim, idim)
+      if (ndim.ne.1) stop 'invalid dimensions in cell heights'
+      kd=idim(1)
+      if (ifdebug) write (*,*) 'debug: kd = ', kd
+
+      allocate (axial(kd))
+
+      call hdf5_read_double(file_id, dataset, kd, i, axial)
+      if (i.ne.kd) then
+        stop 'invalid number of axial levels'
+      endif
+
+      if (ifdebug) then
+        write (*,*) 'debug: axial heights [cm]'
+        zsum=0.0d0
+        do i=kd, 1, -1
+           write (*,'(i4,f12.6)') i, axial(i)
+           zsum=zsum+axial(i)
+        enddo
+        write (*,'(a,f10.5)') ' sum of axial heights =', zsum
+
+      endif
+
+!--- read channel flow areas (3D array)
+
+      dataset=trim(group_name)//'channel_flow_areas [cm^2]'
+      call h5info(file_id, dataset, itype, ndim, idim)
+      if (ndim.ne.3) stop 'invalid dimensions in channel flow areas'
+
+      nassm=idim(1)    ! order (nassm, kd, npin, npin)
+      nchan=idim(2)
+      npin=nchan-1
+
+      if (ifdebug) then
+        write (*,*) 'dimensions:'
+        write (*,*) ' nassm = ', nassm
+        write (*,*) ' npin  = ', npin
+        write (*,*) ' nchan = ', nchan, idim(3)
+        write (*,*) ' kd    = ', kd   
+      endif
+
+      if (nassm.eq.0) stop 'invalid number of assemblies in pin data'
+      if (npin .eq.0) stop 'invalid number of pins in pin data'
+      if (idim(2).ne.idim(3)) stop 'invalid numbering npin by npin'
+
+      allocate (charea(nassm,nchan,nchan))    ! channel areas
+      call hdf5_read_double(file_id, dataset, nassm, nchan, nchan, charea)
+
+!--- allocate other arrays
+
+      if (ifdebug) write (*,*) 'debug: allocating pin arrays'
+
+      allocate (power    (npin, npin, kd, nassm))
+      allocate (tfuel    (npin, npin, kd, nassm))
+      allocate (chtemp   (nchan,nchan,kd, nassm))
+      allocate (tcool    (npin, npin, kd, nassm))  ! coolant temps per pincell
+
 !----------------------------------------------------
 !  Read STATE group - only one statepoint supported
 !----------------------------------------------------
 
       nstate=1
-      write (group_name,'(a,i4.4,a)') '/STATE_', nstate, '/'
+      write (state_name,'(a,i4.4,a)') '/STATE_', nstate, '/'
+      write (state_name,'(a,i4.4,a)') '/Simulation Results/'   ! ********
 
-      if (ifdebug) write (*,*) 'debug: state= ', group_name
+      if (ifdebug) write (*,*) 'debug: state= ', state_name
 
 !--- check if statepoint exists or data is in root group
 
-      call h5lexists_f(file_id, group_name, ifxst, ierror)
+      call h5lexists_f(file_id, state_name, ifxst, ierror)
       if (.not.ifxst) then
 !x      write (*,*) 'dataset not found - exiting'
 !x      goto 800
-        write (*,'(3a)') 'WARNING: Group ', trim(group_name),' not found'
+        write (*,'(3a)') 'WARNING: Group ', trim(state_name),' not found'
         write (*,'(3a)') 'WARNING: Looking in HDF root instead'
-        group_name=' '
+        state_name=' '
       endif
 
 !--------------------------------------------------------------------------------
 ! Read pin powers
 !--------------------------------------------------------------------------------
 
-!--- allocate arrays if first statepoint
-
-      if (nstate.eq.1) then
-          dataset=trim(group_name)//label_power
-          call h5info(file_id, dataset, itype, ndim, idim)
-
-          nassm=idim(1)    ! order (nassm, kd, npin, npin)
-          kd   =idim(2)
-          npin =idim(4)
-    
-          nchan=npin+1
-
-          write (*,*) 'dimensions:'
-          write (*,*) ' ndim  = ', ndim
-          write (*,*) ' nassm = ', nassm
-          write (*,*) ' kd    = ', kd
-          write (*,*) ' npin  = ', npin
-          write (*,*) ' nchan = ', nchan
-
-          if (ndim .ne.4) stop 'invalid dimensions in pin data'
-          if (nassm.eq.0) stop 'invalid number of assemblies in pin data'
-          if (npin .eq.0) stop 'invalid number of pins in pin data'
-
-          if (idim(3).ne.idim(4)) stop 'invalid npin in pin data'
-
-!    allocate arrays
-
-          if (ifdebug) write (*,*) 'debug: allocating pin arrays'
-
-          allocate (axial(kd+1))    ! allocate larger to protect from older files
-          allocate (charea   (nassm, nchan, nchan))
-
-          allocate (power    (npin, npin, kd, nassm))
-          allocate (tfuel    (npin, npin, kd, nassm))
-          allocate (chtemp   (nchan,nchan,kd, nassm))
-          allocate (tcool    (npin, npin, kd, nassm))  ! coolant temps per pincell
-
-      endif      ! nstate.eq.1
-
-!--- read axial heights
-
-        dataset=trim(group_name)//'channel_cell_height [cm]'
-        call hdf5_read_double(file_id, dataset, kd+1, i, axial)
-        if (i.eq.kd+1) then
-          write (*,*) 'ERROR: HDF file contains too many axial levels - correcting for old file'
-          axial(kd+1)=0.0d0
-        elseif (i.ne.kd) then
-          stop 'invalid number of axial levels'
-        endif
-
-        if (ifdebug) then
-          write (*,*) 'debug: axial heights [cm]'
-          zsum=0.0d0
-          do i=kd, 1, -1
-             write (*,'(i4,f12.6)') i, axial(i)
-             zsum=zsum+axial(i)
-          enddo
-          write (*,*) 'sum of axial heights =', zsum
-        endif
-
-!--- read channel flow areas (3D array)
-
-        dataset=trim(group_name)//'channel_flow_areas [cm^2]'
-        call hdf5_read_double(file_id, dataset, nassm, nchan, nchan, charea)
-
 !--- read 4D data into temporary array then change order
 
         allocate (temppower(nassm,kd,npin,npin))
 
-        dataset=trim(group_name)//label_power
+        dataset=trim(state_name)//label_power
         call hdf5_read_double(file_id, dataset, nassm, kd, npin, npin, temppower)
         call transpose4d(npin, npin, kd, nassm, temppower, power)
         call checkdata ('power', npin, kd, nassm, power)
 
-        dataset=trim(group_name)//label_tfuel
+        dataset=trim(state_name)//label_tfuel
         call hdf5_read_double(file_id, dataset, nassm, kd, npin, npin, temppower)
         call transpose4d(npin, npin, kd, nassm, temppower, tfuel)
         call checkdata ('tfuel', npin, kd, nassm, tfuel)
@@ -243,7 +254,7 @@
 
         allocate (temppower(nassm,kd,nchan,nchan))
 
-        dataset=trim(group_name)//'channel_liquid_temps [C]'
+        dataset=trim(state_name)//'channel_liquid_temps [C]'
         call hdf5_read_double(file_id, dataset, nassm, kd, nchan, nchan, temppower)
         call transpose4d(nchan, nchan, kd, nassm, temppower, chtemp)
 
