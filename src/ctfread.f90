@@ -280,7 +280,7 @@
         call stat3d(label_power,  npin,  kd, nassm, axial, power)        
         call stat3d(label_tfuel,  npin,  kd, nassm, axial, tfuel)
 
-        call stat3d('Pincell Coolant Temperatures [C]', npin, kd, nassm, axial, tcool)
+        call stat3d(label_tcool, npin, kd, nassm, axial, tcool)
         write (*,*) '(coolant averages do not include flow area weighting)'
 
         call stat3d(label_chcool, nchan, kd, nassm, axial, chtemp)
