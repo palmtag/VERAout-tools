@@ -20,7 +20,7 @@
 !
 !  2014/08/25 - updated power edits to use new W/cm units (hopefully final time units change)
 !
-!  2014/09/19 - CTF output file changed again!  now the top level is "Simulation Results"
+!  2014/09/22 - Update CTF data structure on HDF file
 !
 !  There are still some issues that need to be worked out:
 !    * There are some cases that have a very small power in non-fuel regions
@@ -48,13 +48,15 @@
       real(8), parameter :: cvert =t_btu_J/(3600.0d0*12.0d0*2.54d0)  ! W/cm to BTU/hr/ft
 
       logical            :: ifxst
-      logical            :: ifdebug=.true.  ! debug flag
+      logical            :: ifdebug=.false.  ! debug flag
 
       character(len=80)  :: dataset         ! HDF dataset name
       character(len=22)  :: state_name      ! HDF group name for STATE
       character(len=22)  :: group_name      ! HDF group name for CORE
       character(len=30)  :: label_power     ! power label - for both input and output
       character(len=30)  :: label_tfuel     ! tfuel label - for both input and output
+      character(len=40)  :: label_tcool     ! pincell coolant temperature label - output only
+      character(len=30)  :: label_chcool    ! channel coolant temperature label - for both input and output
 
       integer(hid_t)     :: file_id         ! HDF file ID number
 
@@ -88,6 +90,8 @@
 
       label_power='pin_powers [W per cm]'
       label_tfuel='pin_fueltemps [C]'
+      label_tcool='Pincell Coolant Temperatures [C]'   ! output only
+      label_chcool='channel_liquid_temps [C]'
 
 !----------------------------------------------------------------------
 !  Read in arguments from command line
@@ -212,12 +216,11 @@
       allocate (tcool    (npin, npin, kd, nassm))  ! coolant temps per pincell
 
 !----------------------------------------------------
-!  Read STATE group - only one statepoint supported
+!  Read STATE group - only one statepoint supported at this time
 !----------------------------------------------------
 
       nstate=1
       write (state_name,'(a,i4.4,a)') '/STATE_', nstate, '/'
-      write (state_name,'(a,i4.4,a)') '/Simulation Results/'   ! ********
 
       if (ifdebug) write (*,*) 'debug: state= ', state_name
 
@@ -225,11 +228,8 @@
 
       call h5lexists_f(file_id, state_name, ifxst, ierror)
       if (.not.ifxst) then
-!x      write (*,*) 'dataset not found - exiting'
-!x      goto 800
-        write (*,'(3a)') 'WARNING: Group ', trim(state_name),' not found'
-        write (*,'(3a)') 'WARNING: Looking in HDF root instead'
-        state_name=' '
+        write (*,'(2a)') 'ERROR: cannot find statepoint: ', trim(state_name)
+        stop 'STATE group does not exist'
       endif
 
 !--------------------------------------------------------------------------------
@@ -254,7 +254,7 @@
 
         allocate (temppower(nassm,kd,nchan,nchan))
 
-        dataset=trim(state_name)//'channel_liquid_temps [C]'
+        dataset=trim(state_name)//label_chcool
         call hdf5_read_double(file_id, dataset, nassm, kd, nchan, nchan, temppower)
         call transpose4d(nchan, nchan, kd, nassm, temppower, chtemp)
 
@@ -271,18 +271,19 @@
 !--- print 3D maps
 
         if (if3d) then
-          call print_pin_map(label_power,                     npin,  kd, power,  nassm)
-          call print_pin_map(label_tfuel,                     npin,  kd, tfuel,  nassm)
-          call print_pin_map('Channel Flow Temperatures [C]', nchan, kd, chtemp, nassm)
+          call print_pin_map(label_power,  npin,  kd, power,  nassm)
+          call print_pin_map(label_tfuel,  npin,  kd, tfuel,  nassm)
+          call print_pin_map(label_tcool,  npin,  kd, tcool,  nassm)
+          call print_pin_map(label_chcool, nchan, kd, chtemp, nassm)
         endif
 
-        call stat3d(label_power, npin, kd, nassm, axial, power)        
-        call stat3d(label_tfuel, npin, kd, nassm, axial, tfuel)
+        call stat3d(label_power,  npin,  kd, nassm, axial, power)        
+        call stat3d(label_tfuel,  npin,  kd, nassm, axial, tfuel)
 
         call stat3d('Pincell Coolant Temperatures [C]', npin, kd, nassm, axial, tcool)
         write (*,*) '(coolant averages do not include flow area weighting)'
 
-        call stat3d('Channel Coolant Temperatures [C]', nchan, kd, nassm, axial, chtemp)
+        call stat3d(label_chcool, nchan, kd, nassm, axial, chtemp)
         write (*,*) '(coolant averages do not include flow area weighting)'
 
 !--- 2D edits
@@ -294,6 +295,8 @@
         if (if1d) then
            call print1d(label_power, npin, kd, nassm, power, axial)
            call print1d(label_tfuel, npin, kd, nassm, tfuel, axial)
+           call print1d(label_tcool, npin, kd, nassm, tcool, axial)
+           write (*,*) '(coolant averages do not include flow area weighting)'
         endif
 
 !=================================================================
@@ -305,7 +308,7 @@
         if (iftfuel) then
           i=npin*npin*kd*nassm
 
-!!        call quadratic(i, power, tfuel)  ! generate fit w/o subtracting coolant
+!d        call quadratic(i, power, tfuel)  ! generate fit w/o subtracting coolant
 
 !    calculate quadratic fit by subtracting coolant from fuel temp first
 !    this edit also creates a large csv file
