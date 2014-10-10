@@ -22,6 +22,8 @@
 !
 !  2014/09/22 - Update CTF data structure on HDF file
 !
+!  2014/10/10 - Added steaming rate and rod surface temperature arrays
+!
 !  There are still some issues that need to be worked out:
 !    * There are some cases that have a very small power in non-fuel regions
 !      The user needs to examine the output carefully to make sure the 
@@ -44,11 +46,10 @@
       integer            :: nstate=0        ! statepoint number
 
       real(8)            :: zsum
-      real(8), parameter :: t_btu_J = 1055.05585262d0
-      real(8), parameter :: cvert =t_btu_J/(3600.0d0*12.0d0*2.54d0)  ! W/cm to BTU/hr/ft
 
-      logical            :: ifxst
-      logical            :: ifdebug=.false.  ! debug flag
+      logical            :: ifxst           ! flag if file exists
+      logical            :: ifsteam         ! flag if steaming rate data is present
+      logical            :: ifdebug=.false. ! debug flag
 
       character(len=80)  :: dataset         ! HDF dataset name
       character(len=22)  :: state_name      ! HDF group name for STATE
@@ -57,6 +58,8 @@
       character(len=30)  :: label_tfuel     ! tfuel label - for both input and output
       character(len=40)  :: label_tcool     ! pincell coolant temperature label - output only
       character(len=30)  :: label_chcool    ! channel coolant temperature label - for both input and output
+      character(len=30)  :: label_tsurf(4)  ! surface temp  label - for both input and output
+      character(len=40)  :: label_steam(4)  ! steaming rate label - for both input and output
 
       integer(hid_t)     :: file_id         ! HDF file ID number
 
@@ -76,6 +79,14 @@
       real(8), allocatable :: charea(:,:,:)    ! channel areas
       real(8), allocatable :: chtemp(:,:,:,:)  ! channel heights
       real(8), allocatable :: tcool (:,:,:,:)  ! coolant temperatures per pincell
+      real(8), allocatable :: steam1(:,:,:,:)
+      real(8), allocatable :: steam2(:,:,:,:)
+      real(8), allocatable :: steam3(:,:,:,:)
+      real(8), allocatable :: steam4(:,:,:,:)
+      real(8), allocatable :: tsurf1(:,:,:,:)
+      real(8), allocatable :: tsurf2(:,:,:,:)
+      real(8), allocatable :: tsurf3(:,:,:,:)
+      real(8), allocatable :: tsurf4(:,:,:,:)
 
 ! command line flags
 
@@ -92,6 +103,16 @@
       label_tfuel='pin_fueltemps [C]'
       label_tcool='Pincell Coolant Temperatures [C]'   ! output only
       label_chcool='channel_liquid_temps [C]'
+
+      label_tsurf(1)='Rod_Surface_Temp_1 [C]'
+      label_tsurf(2)='Rod_Surface_Temp_2 [C]'
+      label_tsurf(3)='Rod_Surface_Temp_3 [C]'
+      label_tsurf(4)='Rod_Surface_Temp_4 [C]'
+
+      label_steam(1)='Steaming_Rate_Segment1 [kg_per_s]'
+      label_steam(2)='Steaming_Rate_Segment2 [kg_per_s]'
+      label_steam(3)='Steaming_Rate_Segment3 [kg_per_s]'
+      label_steam(4)='Steaming_Rate_Segment4 [kg_per_s]'
 
 !----------------------------------------------------------------------
 !  Read in arguments from command line
@@ -181,13 +202,13 @@
 
       endif
 
-!--- read channel flow areas (3D array)
+!--- read channel flow areas (2D array)
 
       dataset=trim(group_name)//'channel_flow_areas [cm^2]'
       call h5info(file_id, dataset, itype, ndim, idim)
       if (ndim.ne.3) stop 'invalid dimensions in channel flow areas'
 
-      nassm=idim(1)    ! order (nassm, kd, npin, npin)
+      nassm=idim(1)    ! order (nassm, nchan, nchan)
       nchan=idim(2)
       npin=nchan-1
 
@@ -214,6 +235,14 @@
       allocate (tfuel    (npin, npin, kd, nassm))
       allocate (chtemp   (nchan,nchan,kd, nassm))
       allocate (tcool    (npin, npin, kd, nassm))  ! coolant temps per pincell
+      allocate (tsurf1   (npin, npin, kd, nassm))
+      allocate (tsurf2   (npin, npin, kd, nassm))
+      allocate (tsurf3   (npin, npin, kd, nassm))
+      allocate (tsurf4   (npin, npin, kd, nassm))
+      allocate (steam1   (npin, npin, kd, nassm))
+      allocate (steam2   (npin, npin, kd, nassm))
+      allocate (steam3   (npin, npin, kd, nassm))
+      allocate (steam4   (npin, npin, kd, nassm))
 
 !----------------------------------------------------
 !  Read STATE group - only one statepoint supported at this time
@@ -232,11 +261,23 @@
         stop 'STATE group does not exist'
       endif
 
+!--- check if steaming data exists
+
+      dataset=trim(state_name)//label_steam(1)
+      call h5lexists_f(file_id, dataset, ifsteam, ierror)
+      if (.not.ifsteam) then
+        write (*,'(2a)') 'WARNING: Steaming data does not exist on this file'
+      endif
+
+
 !--------------------------------------------------------------------------------
-! Read pin powers
+! Read Statepoint Data
 !--------------------------------------------------------------------------------
 
+
 !--- read 4D data into temporary array then change order
+
+!--- pin power
 
         allocate (temppower(nassm,kd,npin,npin))
 
@@ -245,12 +286,61 @@
         call transpose4d(npin, npin, kd, nassm, temppower, power)
         call checkdata ('power', npin, kd, nassm, power)
 
+!--- tfuel
+
         dataset=trim(state_name)//label_tfuel
         call hdf5_read_double(file_id, dataset, nassm, kd, npin, npin, temppower)
         call transpose4d(npin, npin, kd, nassm, temppower, tfuel)
         call checkdata ('tfuel', npin, kd, nassm, tfuel)
 
-        deallocate (temppower)
+!--- surface temp
+
+      if (ifsteam) then
+        dataset=trim(state_name)//label_steam(1)
+        call hdf5_read_double(file_id, dataset, nassm, kd, npin, npin, temppower)
+        call transpose4d(npin, npin, kd, nassm, temppower, steam1)
+!!      call checkdata ('steam1', npin, kd, nassm, steam1)   ! ** don't check steam values, they could be small!
+
+        dataset=trim(state_name)//label_steam(2)
+        call hdf5_read_double(file_id, dataset, nassm, kd, npin, npin, temppower)
+        call transpose4d(npin, npin, kd, nassm, temppower, steam2)
+!!      call checkdata ('steam2', npin, kd, nassm, steam2)
+
+        dataset=trim(state_name)//label_steam(3)
+        call hdf5_read_double(file_id, dataset, nassm, kd, npin, npin, temppower)
+        call transpose4d(npin, npin, kd, nassm, temppower, steam3)
+!!      call checkdata ('steam3', npin, kd, nassm, steam3)
+
+        dataset=trim(state_name)//label_steam(4)
+        call hdf5_read_double(file_id, dataset, nassm, kd, npin, npin, temppower)
+        call transpose4d(npin, npin, kd, nassm, temppower, steam4)
+!!      call checkdata ('steam4', npin, kd, nassm, steam4)
+
+        dataset=trim(state_name)//label_tsurf(1)
+        call hdf5_read_double(file_id, dataset, nassm, kd, npin, npin, temppower)
+        call transpose4d(npin, npin, kd, nassm, temppower, tsurf1)
+        call checkdata ('tsurf1', npin, kd, nassm, tsurf1)
+
+        dataset=trim(state_name)//label_tsurf(2)
+        call hdf5_read_double(file_id, dataset, nassm, kd, npin, npin, temppower)
+        call transpose4d(npin, npin, kd, nassm, temppower, tsurf2)
+        call checkdata ('tsurf2', npin, kd, nassm, tsurf2)
+
+        dataset=trim(state_name)//label_tsurf(3)
+        call hdf5_read_double(file_id, dataset, nassm, kd, npin, npin, temppower)
+        call transpose4d(npin, npin, kd, nassm, temppower, tsurf3)
+        call checkdata ('tsurf3', npin, kd, nassm, tsurf3)
+
+        dataset=trim(state_name)//label_tsurf(4)
+        call hdf5_read_double(file_id, dataset, nassm, kd, npin, npin, temppower)
+        call transpose4d(npin, npin, kd, nassm, temppower, tsurf4)
+        call checkdata ('tsurf4', npin, kd, nassm, tsurf4)
+
+      endif
+
+      deallocate (temppower)
+
+!--- channel coolant
 
         allocate (temppower(nassm,kd,nchan,nchan))
 
@@ -260,9 +350,33 @@
 
         deallocate (temppower)
 
+!--- check data
+
 !  check channel areas
 
         call check_channel(nchan, npin, kd, nassm, charea, axial, chtemp, tcool)
+
+!  convert to max and average steam rates  (1=max, 2=average)
+
+        if (ifsteam) then    ! edit before transformation
+          call stat3d(label_tsurf(1), npin,  kd, nassm, axial, tsurf1)
+          call stat3d(label_tsurf(2), npin,  kd, nassm, axial, tsurf2)
+          call stat3d(label_tsurf(3), npin,  kd, nassm, axial, tsurf3)
+          call stat3d(label_tsurf(4), npin,  kd, nassm, axial, tsurf4)
+          call stat3d(label_steam(1), npin,  kd, nassm, axial, steam1)
+          call stat3d(label_steam(2), npin,  kd, nassm, axial, steam2)
+          call stat3d(label_steam(3), npin,  kd, nassm, axial, steam3)
+          call stat3d(label_steam(4), npin,  kd, nassm, axial, steam4)
+        endif
+
+        if (ifsteam) then
+          call surfmaxave(nassm, npin, kd, steam1, steam2, steam3, steam4)
+          call surfmaxave(nassm, npin, kd, tsurf1, tsurf2, tsurf3, tsurf4)
+          label_tsurf(1)='Rod_Surface_MaxSurf [C]'
+          label_tsurf(2)='Rod_Surface_AveSurf [C]'
+          label_steam(1)='Steaming_Rate_MaxSurf [kg_per_s]'
+          label_steam(2)='Steaming_Rate_AveSurf [kg_per_s]'
+        endif
 
 !------------------
 !    Edits
@@ -275,10 +389,22 @@
           call print_pin_map(label_tfuel,  npin,  kd, tfuel,  nassm)
           call print_pin_map(label_tcool,  npin,  kd, tcool,  nassm)
           call print_pin_map(label_chcool, nchan, kd, chtemp, nassm)
+          if (ifsteam) then
+            call print_pin_map(label_tsurf(1), npin, kd, tsurf1, nassm)
+            call print_pin_map(label_tsurf(2), npin, kd, tsurf2, nassm)
+            call print_pin_map(label_steam(1), npin, kd, steam1, nassm)
+            call print_pin_map(label_steam(2), npin, kd, steam2, nassm)
+          endif
         endif
 
         call stat3d(label_power,  npin,  kd, nassm, axial, power)        
         call stat3d(label_tfuel,  npin,  kd, nassm, axial, tfuel)
+        if (ifsteam) then
+          call stat3d(label_tsurf(1),  npin,  kd, nassm, axial, tsurf1)
+          call stat3d(label_tsurf(2),  npin,  kd, nassm, axial, tsurf2)
+          call stat3d(label_steam(1),  npin,  kd, nassm, axial, steam1)
+          call stat3d(label_steam(2),  npin,  kd, nassm, axial, steam2)
+        endif
 
         call stat3d(label_tcool, npin, kd, nassm, axial, tcool)
         write (*,*) '(coolant averages do not include flow area weighting)'
@@ -297,6 +423,12 @@
            call print1d(label_tfuel, npin, kd, nassm, tfuel, axial)
            call print1d(label_tcool, npin, kd, nassm, tcool, axial)
            write (*,*) '(coolant averages do not include flow area weighting)'
+           if (ifsteam) then
+             call print1d(label_tsurf(1), npin, kd, nassm, tsurf1, axial)
+             call print1d(label_tsurf(2), npin, kd, nassm, tsurf2, axial)
+             call print1d(label_steam(1), npin, kd, nassm, steam1, axial)
+             call print1d(label_steam(2), npin, kd, nassm, steam2, axial)
+           endif
         endif
 
 !=================================================================
@@ -337,6 +469,14 @@
         deallocate (axial)
         deallocate (charea)
         deallocate (chtemp)
+        deallocate (steam1)
+        deallocate (steam2)
+        deallocate (steam3)
+        deallocate (steam4)
+        deallocate (tsurf1)
+        deallocate (tsurf2)
+        deallocate (tsurf3)
+        deallocate (tsurf4)
       endif
 
       write (*,'(/,a)') 'done'
@@ -393,9 +533,16 @@
       endif
 
       write (*,'(/,1x,2a)') '3D Statistics - ', trim(title)
-      write (*,'(a,2f12.4)') ' Max ', zmax
-      write (*,'(a,2f12.4)') ' Ave ', zave
-      write (*,'(a,2f12.4)') ' Min ', zmin
+
+      if (zmax.gt.0.0d0 .and. zmax.lt.0.001d0) then ! print exponent
+        write (*,'(a,1p,e14.5)') ' Max ', zmax
+        write (*,'(a,1p,e14.5)') ' Ave ', zave
+        write (*,'(a,1p,e14.5)') ' Min ', zmin
+      else
+        write (*,'(a,2f12.4)') ' Max ', zmax
+        write (*,'(a,2f12.4)') ' Ave ', zave
+        write (*,'(a,2f12.4)') ' Min ', zmin
+      endif
       write (*,'(a,i12)  ')  ' Num ', kpin
 !!    write (*,*) 'debug: zmin = ', zmin   
 
@@ -965,9 +1112,15 @@
 
       write (*,'(/,1x,a,/,1x,a)') trim(title), '1D Axial Distribution'
       write (*,'(a)')      '    K   Elev         Delta      Average     Minimum     Maximum'
-      do k=kd, 1, -1
-        write (*,200) k, axmid(k), axial(k), axpow(k), axmin(k), axmax(k)
-      enddo
+      if (pave.lt.0.001d0) then  ! print exponent
+        do k=kd, 1, -1
+          write (*,210) k, axmid(k), axial(k), axpow(k), axmin(k), axmax(k)
+        enddo
+      else
+        do k=kd, 1, -1
+          write (*,200) k, axmid(k), axial(k), axpow(k), axmin(k), axmax(k)
+        enddo
+      endif
       write (*,205) pave
 
       write (*,140) 'total ', ztot
@@ -975,7 +1128,63 @@
   140 format (2x,a,' axial length ', f12.4,' cm')
 
   200 format (i5,f10.4,6f12.4)
+  210 format (i5,f10.4,f12.4,1p,6e14.5)
   205 format (2x,'ave',22x,f12.4)
 
       return
       end subroutine print1d
+!=======================================================================
+!
+!   Subroutine to convert 4 surface arrays into an array of max and average values
+!
+!   Do calculations inline so we don't have to declare any more arrays
+!
+!   input:
+!     steam1   data for surface 1
+!     steam2   data for surface 2
+!     steam3   data for surface 3
+!     steam4   data for surface 4
+!
+!   output:
+!     steam1   max surface
+!     steam2   average surface
+!     steam3
+!     steam4
+!=======================================================================
+      subroutine surfmaxave(nassm, npin, kd, steam1, steam2, steam3, steam4)
+      implicit none
+      integer, intent(in) :: nassm, npin, kd
+      real(8)             :: steam1(npin, npin, kd, nassm)
+      real(8)             :: steam2(npin, npin, kd, nassm)
+      real(8)             :: steam3(npin, npin, kd, nassm)
+      real(8)             :: steam4(npin, npin, kd, nassm)
+
+      integer :: i, j, k, na
+      real(8) :: temp1, temp2, temp3, temp4
+      real(8) :: tmax     ! temporary max value
+      real(8) :: tave     ! temporary ave value
+      real(8) :: cmax     ! core wide max
+
+      cmax=0.0d0
+      do na=1, nassm
+        do k=1, kd
+          do j=1, npin
+            do i=1, npin
+              temp1=steam1(i,j,k,na)
+              temp2=steam2(i,j,k,na)
+              temp3=steam3(i,j,k,na)
+              temp4=steam4(i,j,k,na)
+              tmax=max(temp1,temp2,temp3,temp4)
+              cmax=max(cmax,tmax)
+              tave=(temp1+temp2+temp3+temp4)*0.25d0
+              steam1(i,j,k,na)=tmax
+              steam2(i,j,k,na)=tave
+            enddo
+          enddo
+        enddo
+      enddo
+
+      return
+      end subroutine surfmaxave
+
+
