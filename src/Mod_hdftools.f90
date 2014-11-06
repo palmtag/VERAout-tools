@@ -1485,7 +1485,8 @@
 !     dataset     dataset name to look for
 !
 !  output:
-!     itype       dataset type - *** always returns 0 for now
+!     itype       dataset type - returns -99 if dataset not found
+!                   **** returns 0 otherwise  **** (needs to be fixed)
 !     ndim        number of dimensions - returns 0 for scalar
 !     idim(10)    integer array of dimension sizes
 !
@@ -1522,14 +1523,17 @@
       idim(:)=0
       ierror=0
 
+      write (*,'(/,1x,2a)') 'checking dataset: ', trim(dataset)
+
 !--- check if dataset exists
 
       call h5lexists_f(file_id, dataset, ifxst, ierror)
-      if (.not.ifxst) return
+      if (.not.ifxst) then
+        itype=-99
+        return
+      endif
 
 !--- open a dataset and dataspace
-
-      write (*,'(/,1x,2a)') 'checking dataset: ', trim(dataset)
 
       call h5dopen_f(file_id, dataset, dset_id, ierror)
       if (ierror<0) then
