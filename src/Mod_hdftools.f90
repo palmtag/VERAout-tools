@@ -7,6 +7,8 @@
 !  Distributed under the MIT license.  
 !  See the LICENSE file in the main directory for details.
 !
+!  Main directory: https://github.com/palmtag/VERAout-tools/
+!
 !=======================================================================
 !
 !  Routine to return type and dimensions:
