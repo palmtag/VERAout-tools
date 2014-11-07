@@ -40,7 +40,7 @@
       character(len=40) :: dataset       ! dataset name
 
       integer(hid_t)    :: file_id       ! File identifier
-      integer           :: idim4(10)     ! Dataset dimensions (use with h5info)
+      integer           :: idims(10)     ! Dataset dimensions (use with h5info)
       integer           :: ndim
 
       integer :: ll
@@ -106,24 +106,24 @@
 !--- read pin dimensions from pin power array
 
       dataset=trim(state_name)//'pin_powers'
-      call h5info(file_id, dataset, itype, ndim, idim4)
+      call h5info(file_id, dataset, itype, ndim, idims)
 
-!d    write (*,*) 'idim: ', idim4(1:ndim)
+!d    write (*,*) 'idim: ', idims(1:ndim)
 
-      nassm =idim4(1)         ! order (nassm, naxial, npin, npin)
-      naxial=idim4(2)
-      npin  =idim4(4)
+      nassm =idims(1)         ! order (nassm, naxial, npin, npin)
+      naxial=idims(2)
+      npin  =idims(4)
 
       write (*,20) 'ndim  ', ndim
       write (*,20) 'nassm ', nassm
       write (*,20) 'naxial', naxial
-      write (*,20) 'npin  ', idim4(3)
+      write (*,20) 'npin  ', idims(3)
       write (*,20) 'npin  ', npin
    20 format (' debug pin: ', a, '=', i6)
 
       if (ndim.ne.4) stop 'invalid dimensions in pin data'
       if (npin.eq.0) stop 'invalid number of pins in pin data'
-      if (idim4(3).ne.idim4(4)) stop 'invalid npin in pin data'
+      if (idims(3).ne.idims(4)) stop 'invalid npin in pin data'
 
 !--- write XMFMESH data to a separate grid file
 
@@ -223,8 +223,7 @@
 
       character(len=12) :: group_name
       character(len=40) :: dataset       ! Dataset name
-      integer(hsize_t)  :: idims(10)     ! Dataset dimensions
-      integer           :: idim4(10)     ! Dataset dimensions (used with h5info)
+      integer           :: idims(10)     ! Dataset dimensions
       integer(hid_t)    :: grid_id       ! Grid File identifier
       integer(hid_t)    :: group_id      ! Group identifier
 
@@ -281,16 +280,16 @@
 !--- read core map
 
       dataset='/CORE/core_map'
-      call h5info(file_id, dataset, itype, ndim, idim4)
+      call h5info(file_id, dataset, itype, ndim, idims)
 
       if (ndim.ne.2) then
         write (*,*) 'debug: ndim=', ndim
-        write (*,*) 'debug: core_map dims ', idim4(1:ndim)
+        write (*,*) 'debug: core_map dims ', idims(1:ndim)
         stop 'invalid core map dimensions'
       endif
 
-      jasm=idim4(1)   ! C-order
-      iasm=idim4(2)
+      jasm=idims(1)   ! C-order
+      iasm=idims(2)
 
       if (iasm.ne.jasm) stop 'only square cores are supported'
 

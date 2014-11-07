@@ -19,7 +19,6 @@
       character(len=12) :: dsetname                  ! Dataset name
 
       integer(hid_t)   :: file_id       ! File identifier
-      integer(hsize_t) :: idims(10)     ! Dataset dimensions (2D array)
 
       integer     :: num1d
       integer     :: nx, ny, nz, na
@@ -33,22 +32,21 @@
       real(8), allocatable :: power3d(:,:,:)
       real(8), allocatable :: power4d(:,:,:,:)
 
-      integer     :: int0d, itemp(1)
-      integer, allocatable :: int1d(:)
-      integer, allocatable :: int2d(:,:)
-
-      character(len=20) :: namex(3)
-      character(len=22) :: stringin      ! make these strings different lengths
-      character(len=18) :: stringout
-
       integer     :: kerr
       integer     :: ierror              ! Error flag
       integer     :: nbad 
       integer     :: nfail               ! number of failures
       integer     :: ndim                ! number of dimensions in h5info
       integer     :: itype               ! data type in h5info
-      integer     :: idim(10)            ! array dimensions in h5info
+      integer     :: idims(10)           ! dataset dimensions
+      integer     :: int0d
+      integer     :: itemp(1)
+      integer, allocatable :: int1d(:)
+      integer, allocatable :: int2d(:,:)
 
+      character(len=20) :: namex(3)
+      character(len=22) :: stringin      ! make these strings different lengths
+      character(len=18) :: stringout
 
 !--- allocate and fill dummy arrays
 
@@ -118,7 +116,7 @@
       call h5open_f(ierror)
       if (ierror.ne.0) stop 'ierror: h5open_f'
 
-      write (*,'(2a,i10)') 'creating file: ', trim(filename), file_id
+      write (*,'(2a,i10)') 'creating file: ', trim(filename)
 
 !--- Create a new file using default properties.
 
@@ -247,72 +245,82 @@
 !--- test h5info
 
       dsetname='junk'
-      call h5info(file_id, dsetname, itype, ndim, idim)   ! return code for not found
+      call h5info(file_id, dsetname, itype, ndim, idims)  ! test return code for not found
       if (itype.eq.-99) then
-        write (*,220) 'h5info 1   ', 'PASS'
+        write (*,220) 'h5info return code 1 ', 'PASS'
       else
         nfail=nfail+1
         write (*,*) 'h5finfo did not return proper return code'
-        write (*,220) 'h5info 1   ', 'FAIL'
+        write (*,220) 'h5info return code 1   ', 'FAIL'
       endif
 
       dsetname='power4d'
-      call h5info(file_id, dsetname, itype, ndim, idim)   ! return code for not found
+      call h5info(file_id, dsetname, itype, ndim, idims)
 
       if (itype.eq.0) then
-        write (*,220) 'h5info 2   ', 'PASS'
+        write (*,220) 'h5info return code 2   ', 'PASS'
       else
         nfail=nfail+1
         write (*,*) 'h5finfo did not return correct itype'
-        write (*,220) 'h5info 2   ', 'FAIL'
+        write (*,220) 'h5info return code 2   ', 'FAIL'
       endif
 
       if (ndim.eq.4) then
-        write (*,220) 'h5info 3   ', 'PASS'
+        write (*,220) 'h5info number of dimensions', 'PASS'
       else
         nfail=nfail+1
         write (*,*) 'h5finfo returned invalid number of dimensions'
-        write (*,220) 'h5info 3   ', 'FAIL'
+        write (*,220) 'h5info number of dimensions', 'FAIL'
       endif
 
-      if (idim(1).eq.nx) then
-        write (*,220) 'h5info 4   ', 'PASS'
+      if (idims(1).eq.nx) then
+        write (*,220) 'h5info dimension 1', 'PASS'
       else
         nfail=nfail+1
         write (*,*) 'h5finfo returned invalid dimension size 1'
         write (*,*) ' expecting ', nx
-        write (*,*) ' found     ', idim(1)
-        write (*,220) 'h5info 4   ', 'FAIL'
+        write (*,*) ' found     ', idims(1)
+        write (*,220) 'h5info dimension 1', 'FAIL'
       endif
 
-      if (idim(2).eq.ny) then
-        write (*,220) 'h5info 5   ', 'PASS'
+      if (idims(2).eq.ny) then
+        write (*,220) 'h5info dimension 2', 'PASS'
       else
         nfail=nfail+1
         write (*,*) 'h5finfo returned invalid dimension size 2'
         write (*,*) ' expecting ', ny
-        write (*,*) ' found     ', idim(2)
-        write (*,220) 'h5info 5   ', 'FAIL'
+        write (*,*) ' found     ', idims(2)
+        write (*,220) 'h5info dimension 2', 'FAIL'
       endif
 
-      if (idim(3).eq.nz) then
-        write (*,220) 'h5info 6   ', 'PASS'
+      if (idims(3).eq.nz) then
+        write (*,220) 'h5info dimension 3', 'PASS'
       else
         nfail=nfail+1
         write (*,*) 'h5finfo returned invalid dimension size 3'
         write (*,*) ' expecting ', nz
-        write (*,*) ' found     ', idim(3)
-        write (*,220) 'h5info 6   ', 'FAIL'
+        write (*,*) ' found     ', idims(3)
+        write (*,220) 'h5info dimension 3', 'FAIL'
       endif
 
-      if (idim(4).eq.na) then
-        write (*,220) 'h5info 7   ', 'PASS'
+      if (idims(4).eq.na) then
+        write (*,220) 'h5info dimension 4', 'PASS'
       else
         nfail=nfail+1
         write (*,*) 'h5finfo returned invalid dimension size 4'
         write (*,*) ' expecting ', na
-        write (*,*) ' found     ', idim(4)
-        write (*,220) 'h5info 7   ', 'FAIL'
+        write (*,*) ' found     ', idims(4)
+        write (*,220) 'h5info dimension 4', 'FAIL'
+      endif
+
+      if (idims(5).eq.0) then
+        write (*,220) 'h5info dimension 5', 'PASS'
+      else
+        nfail=nfail+1
+        write (*,*) 'h5finfo returned invalid dimension size 5'
+        write (*,*) ' expecting ', na
+        write (*,*) ' found     ', idims(5)
+        write (*,220) 'h5info dimension 5', 'FAIL'
       endif
 
 
@@ -554,7 +562,8 @@
 !--- if no failures, delete temporary file
 
       if (nfail.eq.0) then
-        write (*,*) 'deleting temporary file since there are no failures'
+        write (*,*)
+        write (*,*) 'deleting temporary h5 file since everything passed'
         open (20,file='dsetunit.h5', status='old')
         close (20,status='delete')
       endif

@@ -879,12 +879,13 @@
 
       integer(hid_t)     :: dset_id
       integer(hid_t)     :: type_id
-      integer            :: ierror, i
+      integer            :: ierror
 
       integer, parameter :: max_dimen=2     ! maximum number of dimensions allowed
 
       integer(hsize_t)   :: h_dims(max_dimen)
       integer(size_t)    :: strlen
+      integer(size_t)    :: iht
 
       ierror=0
       stringout=' '    ! initialize
@@ -933,9 +934,9 @@
         stop
       endif
 
-      do i=1, strlen    ! search for null
-        if (ichar(stringout(i:i)).eq.0) then
-          stringout(i:i)=' '  ! remove null
+      do iht=1, strlen    ! search for null
+        if (ichar(stringout(iht:iht)).eq.0) then
+          stringout(iht:iht)=' '  ! remove null
         endif
       enddo
 
@@ -1113,7 +1114,7 @@
 
       character(len=*), intent(in) :: dataset      ! Dataset name
       integer(hid_t),   intent(in) :: file_id      ! File identifier
-      integer(hsize_t), intent(in) :: idims(10)    ! Dataset dimensions
+      integer,          intent(in) :: idims(10)    ! Dataset dimensions
       real,             intent(in) :: xvar(*)      ! multi-dimensional array, treated as 1D
 
 !--- local
@@ -1125,6 +1126,7 @@
       integer  :: i
       integer  :: irank               ! Dataset rank
       integer  :: ierror              ! Error flag
+      integer(hsize_t) :: idimht(10)  ! Dataset dimensions - using HDF size
 
 !--- calculate rank from idims array
 
@@ -1132,16 +1134,18 @@
 
       irank=0
       do i=1, 10
-        if (idims(i).gt.0) irank=i
+        idimht(i)=idims(i)    ! convert from normal integer to hsize_t
+        if (idimht(i).gt.0) irank=i
       enddo
 
       write (*,'(2a,i3)') ' writing dataspace name: ', dataset
-      write (*,*) '  creating dataspace with rank ', irank
-      write (*,*) '  creating dataspace with dims ', idims(1:irank)
+      write (*,30) 'rank ', irank
+      write (*,30) 'dims ', idimht(1:irank)
+   30 format (3x,'creating dataspace with ',a, 10i6)
 
 ! Create the dataspace (information about array)
 
-      call h5screate_simple_f(irank, idims, dspace_id, ierror)
+      call h5screate_simple_f(irank, idimht, dspace_id, ierror)
       if (ierror.ne.0) stop 'ierror: h5screate_simple'
 
 ! Create the dataset with default properties.
@@ -1151,7 +1155,7 @@
 
 ! Write dataset
 
-      call h5dwrite_f(dset_id, dtype_id, xvar, idims, ierror)
+      call h5dwrite_f(dset_id, dtype_id, xvar, idimht, ierror)
       if (ierror.ne.0) stop 'ierror: h5dwrite_f'
 
 ! End access to the dataset and release resources used by it. (release dataset id)
@@ -1187,7 +1191,7 @@
 
       character(len=*), intent(in) :: dataset      ! Dataset name
       integer(hid_t),   intent(in) :: file_id      ! File identifier
-      integer(hsize_t), intent(in) :: idims(10)    ! Dataset dimensions
+      integer,          intent(in) :: idims(10)    ! Dataset dimensions
       real(8),          intent(in) :: xvar(*)      ! multi-dimensional array, treated as 1D
 
 !--- local
@@ -1199,22 +1203,25 @@
       integer  :: i
       integer  :: irank               ! Dataset rank
       integer  :: ierror              ! Error flag
+      integer(hsize_t) :: idimht(10)  ! Dataset dimensions - using HDF size
 
 !--- calculate rank from idims array
 
       dtype_id=H5T_NATIVE_DOUBLE
 
       do i=1, 10
-        if (idims(i).gt.0) irank=i
+        idimht(i)=idims(i)    ! convert from normal integer to hsize_t
+        if (idimht(i).gt.0) irank=i
       enddo
 
       write (*,'(2a,i3)') ' writing dataspace name: ', dataset
-      write (*,*) '  creating dataspace with rank ', irank
-      write (*,*) '  creating dataspace with dims ', idims(1:irank)
+      write (*,30) 'rank ', irank
+      write (*,30) 'dims ', idimht(1:irank)
+   30 format (3x,'creating dataspace with ',a, 10i6)
 
 ! Create the dataspace (information about array)
 
-      call h5screate_simple_f(irank, idims, dspace_id, ierror)
+      call h5screate_simple_f(irank, idimht, dspace_id, ierror)
       if (ierror.ne.0) stop 'ierror: h5screate_simple'
 
 ! Create the dataset with default properties.
@@ -1224,7 +1231,7 @@
 
 ! Write dataset
 
-      call h5dwrite_f(dset_id, dtype_id, xvar, idims, ierror)
+      call h5dwrite_f(dset_id, dtype_id, xvar, idimht, ierror)
       if (ierror.ne.0) stop 'ierror: h5dwrite_f'
 
 ! End access to the dataset and release resources used by it. (release dataset id)
@@ -1261,7 +1268,7 @@
 
       character(len=*), intent(in) :: dataset      ! Dataset name
       integer(hid_t),   intent(in) :: file_id      ! File identifier
-      integer(hsize_t), intent(in) :: idims(10)    ! Dataset dimensions
+      integer,          intent(in) :: idims(10)    ! Dataset dimensions
       integer,          intent(in) :: xvar(*)      ! multi-dimensional array, treated as 1D
 
 !--- local
@@ -1273,6 +1280,7 @@
       integer  :: i
       integer  :: irank               ! Dataset rank
       integer  :: ierror              ! Error flag
+      integer(hsize_t) :: idimht(10)  ! Dataset dimensions - using HDF size
 
 !--- calculate rank from idims array
 
@@ -1280,16 +1288,18 @@
 
       irank=0
       do i=1, 10
-        if (idims(i).gt.0) irank=i
+        idimht(i)=idims(i)    ! convert from normal integer to hsize_t
+        if (idimht(i).gt.0) irank=i
       enddo
 
       write (*,'(2a,i3)') ' writing dataspace name: ', dataset
-      write (*,*) '  creating dataspace with rank ', irank
-      write (*,*) '  creating dataspace with dims ', idims(1:irank)
+      write (*,30) 'rank ', irank
+      write (*,30) 'dims ', idimht(1:irank)
+   30 format (3x,'creating dataspace with ',a, 10i6)
 
 ! Create the dataspace (information about array)
 
-      call h5screate_simple_f(irank, idims, dspace_id, ierror)
+      call h5screate_simple_f(irank, idimht, dspace_id, ierror)
       if (ierror.ne.0) stop 'ierror: h5screate_simple'
 
 ! Create the dataset with default properties.
@@ -1299,7 +1309,7 @@
 
 ! Write dataset
 
-      call h5dwrite_f(dset_id, dtype_id, xvar, idims, ierror)
+      call h5dwrite_f(dset_id, dtype_id, xvar, idimht, ierror)
       if (ierror.ne.0) stop 'ierror: h5dwrite_f'
 
 ! End access to the dataset and release resources used by it. (release dataset id)
@@ -1395,7 +1405,7 @@
 
       character(len=*), intent(in) :: dataset      ! Dataset name
       integer(hid_t),   intent(in) :: file_id      ! File identifier
-      integer(hsize_t), intent(in) :: idims(10)    ! Dataset dimensions
+      integer,          intent(in) :: idims(10)    ! Dataset dimensions
       character(len=*), intent(in) :: namex(*)     ! multi-dimensional array, treated as 1D
 
 !--- local
@@ -1410,20 +1420,22 @@
       integer  :: i
       integer  :: ierror              ! Error flag
       integer  :: irank               ! dataset rank
+      integer(hsize_t) :: idimht(10)  ! Dataset dimensions - using HDF size
 
 ! Create scalar dataspace (information about array)
 
       attrlen=len(namex)
       irank=0
       do i=1, 10
-        if (idims(i).gt.0) irank=i
+        idimht(i)=idims(i)    ! convert from normal integer to hsize_t
+        if (idimht(i).gt.0) irank=i
       enddo
 
       write (*,'(2a,i3)') ' writing dataspace name: ', dataset
       write (*,*)         ' debug: rank           : ', irank
-      write (*,*)         ' debug: size           : ', idims(1:irank)
+      write (*,*)         ' debug: size           : ', idimht(1:irank)
       write (*,*)         ' debug: len            : ', attrlen
-!att  call h5screate_simple_f(irank, idims, aspace_id, ierror)
+!att  call h5screate_simple_f(irank, idimht, aspace_id, ierror)
 !att  if (ierror.ne.0) stop 'ierror: h5screate_simple'
 
       write (*,*) '*** WARNING: write_stringx subroutine is not working correctly ***'   ! fix
@@ -1451,7 +1463,7 @@
 
 ! Create dataset attribute.
 
-      call h5dwrite_f (dset_id, type_id, namex, idims, ierror)
+      call h5dwrite_f (dset_id, type_id, namex, idimht, ierror)
       if (ierror.ne.0) stop 'ierror: h5dwrite_f'
 
 !att  call h5acreate_f(dset_id, dataset, type_id, aspace_id, attr_id, ierror)
@@ -1459,7 +1471,7 @@
 
 ! Write the attribute data.
 
-!att  call h5awrite_f(attr_id, type_id, namex, idims, ierror)
+!att  call h5awrite_f(attr_id, type_id, namex, idimht, ierror)
 
 ! Close the attribute.
 

@@ -23,8 +23,8 @@
 
       integer(hid_t)   :: file_id       ! File identifier
       integer(hid_t)   :: group_id      ! Group identifier
-      integer(hsize_t) :: idims(10)     ! Dataset dimensions (2D array)
 
+      integer     :: idims(10)     ! Dataset dimensions
       integer     :: itemp(10)
       integer     :: i, j, k, n, na
 
