@@ -136,7 +136,12 @@
 
   900 continue
 
-      if (nfail.gt.0) call exit(nfail)    ! return error code
+      if (nfail.gt.0) then
+        write (*,'(/,a)') 'Overall FAIL'
+        call exit(nfail)    ! return error code
+      else
+        write (*,'(/,a)') 'Overall PASS'
+      endif
 
       end program
 
@@ -192,12 +197,9 @@
         write (statename(7:10),'(i4.4)') nstate
       endif
 
-
-!--------------------------------------------------------------------------------
-! Read Eigenvalue and other scalers
-!--------------------------------------------------------------------------------
-
-!--- eigenvalue
+!--------------------
+!  eigenvalue
+!--------------------
 
       dataset=trim(statename)//'keff'
 
@@ -223,32 +225,24 @@
 
       xkdiff=(xkeff2-xkeff1)*1.0d5
 
-!--- pin powers
+      write (*,'(/,1x,a)') 'Eigenvalue comparisons'
+      write (*,'(2x,a, f12.7)')   'keff1  =', xkeff1
+      write (*,'(2x,a, f12.7)')   'keff2  =', xkeff2
+      write (*,'(2x,a, f12.2,a)') 'diff   =', xkdiff,' pcm'
+      write (*,'(2x,a, f12.2,a)') 'tol    =', xktol ,' pcm'
 
-      dataset=trim(statename)//'pin_powers'
-
-      call h5lexists_f(file_id1, dataset, ifxst, ierror)
-      if (.not.ifxst) then
+      if (abs(xkdiff).lt.xktol) then
+        write (*,*) 'PASS - eigenvalue difference is less than tolerance'
+      else
         nfail=nfail+1
-        ifmissing=.true.
-        write (*,*) 'FAIL - pin power dataset does not exist on file 1'
+        write (*,*) 'FAIL - eigenvalue difference exceeds tolerance'
       endif
 
-      call h5lexists_f(file_id2, dataset, ifxst, ierror)
-      if (.not.ifxst) then
-        nfail=nfail+1
-        ifmissing=.true.
-        write (*,*) 'FAIL - pin power dataset does not exist on file 2'
-      endif
+!--------------------
+!  boron (optional)
+!--------------------
 
-      if (ifmissing) return    ! return if pin powers missing
-
-      call pin_compare(file_id1, file_id2, dataset, rms)
-
-! ****** NOTE THAT NO TOLERANCE IS SET, PIN POWER DIFFERENCES *******
-! ******        IS JUST INFORMATIONAL AT THIS POINT           *******
-
-!--- boron (optional)
+      write (*,*)
 
       dataset=trim(statename)//'boron'
 
@@ -276,18 +270,33 @@
         write (*,'(/,1x,a)') 'No boron comparison performed - at least one file is missing boron'
       endif
 
-      write (*,'(/,1x,a)') 'Eigenvalue comparisons'
-      write (*,'(2x,a, f12.7)')   'keff1  =', xkeff1
-      write (*,'(2x,a, f12.7)')   'keff2  =', xkeff2
-      write (*,'(2x,a, f12.2,a)') 'diff   =', xkdiff,' pcm'
-      write (*,'(2x,a, f12.2,a)') 'tol    =', xktol ,' pcm'
+!----------------
+!  pin powers
+!----------------
 
-      if (abs(xkdiff).lt.xktol) then
-        write (*,*) 'PASS - eigenvalue difference is less than tolerance'
-      else
+      dataset=trim(statename)//'pin_powers'
+
+      call h5lexists_f(file_id1, dataset, ifxst, ierror)
+      if (.not.ifxst) then
         nfail=nfail+1
-        write (*,*) 'FAIL - eigenvalue difference exceeds tolerance'
+        ifmissing=.true.
+        write (*,*) 'FAIL - pin power dataset does not exist on file 1'
       endif
+
+      call h5lexists_f(file_id2, dataset, ifxst, ierror)
+      if (.not.ifxst) then
+        nfail=nfail+1
+        ifmissing=.true.
+        write (*,*) 'FAIL - pin power dataset does not exist on file 2'
+      endif
+
+      if (.not.ifmissing) then
+        call pin_compare(file_id1, file_id2, dataset, rms)
+        write (*,*) 'No PIN tolerance used'
+      endif
+
+! ****** NOTE THAT NO TOLERANCE IS SET, PIN POWER DIFFERENCES *******
+! ******        IS JUST INFORMATIONAL AT THIS POINT           *******
 
 !--- return
 

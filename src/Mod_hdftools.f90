@@ -77,6 +77,7 @@
       private :: read_double2d
       private :: read_double3d
       private :: read_double4d
+      private :: h5_fatal
 
 !--- define generic interface to read datasets
 
@@ -132,15 +133,15 @@
 
       call h5dopen_f(file_id, dataset, dset_id, ierror)
       if (ierror.lt.0) then
-        write(*,'(3a)')   'error: data set ',trim(dataset), ' could not be opened'
-        write(*,'(a,i8)') 'error code ', ierror
+        write (*,'(3a)')   'error: data set ',trim(dataset), ' could not be opened'
+        write (*,'(a,i8)') 'error code ', ierror
         return
       endif
 
       call h5dget_space_f(dset_id, ispace_id, ierror)              !Assign a dataspace based on the dataset
       if (ierror.ne.0) then
         write (*,*) 'error: h5dget_space_f ', ierror
-        stop 'error: h5dget_space_f'
+        call h5_fatal('h5dget_space_f', 'ierror')
       endif
 
 ! Determine number of discrete subunits for each dimensions
@@ -149,7 +150,7 @@
       call h5sget_simple_extent_dims_f(ispace_id, h_dims, h_maxdims, ierror)
       if (ierror.lt.0) then    ! returns rank in ierror
         write (*,*) 'error: h5sget_simple_extent_dims_f ', ierror
-        stop 'error: h5sget_simple_extent_dims_f'
+        call h5_fatal('h5sget_simple_extent_dims_f','ierror')
       endif
       maxndim=ierror
 
@@ -162,10 +163,12 @@
   110 format (/,' dataset : ', a)
   115 format (1x,a,20i4)
 
-      if (maxndim.ne.1) then
+!  allow size 0 for SCALAR data
+
+      if (maxndim.ne.1 .and. maxndim.ne.0) then
         write (*,*) 'invalid number of dimensions in read_integer1d'
-        write (*,*) '  expecting 1, found ', maxndim
-        stop 'invalid number of dimensions in read_integer1d'
+        write (*,*) '  expecting 0 or 1, found ', maxndim
+        call h5_fatal('read_integer1d', 'invalid number of dimensions')
       endif
 
       idm=int(h_dims(1))
@@ -183,8 +186,8 @@
 ! Read data from dataset
       call h5dread_f(dset_id, H5T_NATIVE_INTEGER, ivar, h_dims, ierror)
       if (ierror.ne.0) then
-        write(*,*) 'error reading  data set ',trim(dataset)
-        stop
+        write (*,*) 'error reading data set ',trim(dataset)
+        call h5_fatal('h5dread_f','error reading data set '//trim(dataset))
       endif
 
       call h5sclose_f(ispace_id, ierror)
@@ -240,15 +243,15 @@
 
       call h5dopen_f(file_id, dataset, dset_id, ierror)
       if (ierror.lt.0) then
-        write(*,'(3a)')   'error: data set ',trim(dataset), ' could not be opened'
-        write(*,'(a,i8)') 'error code ', ierror
+        write (*,'(3a)')   'error: data set ',trim(dataset), ' could not be opened'
+        write (*,'(a,i8)') 'error code ', ierror
         return
       endif
 
       call h5dget_space_f(dset_id, ispace_id, ierror)              !Assign a dataspace based on the dataset
       if (ierror.ne.0) then
         write (*,*) 'error: h5dget_space_f ', ierror
-        stop 'error: h5dget_space_f'
+        call h5_fatal('h5dget_space_f','ierror')
       endif
 
 ! Determine number of discrete subunits for each dimensions
@@ -257,7 +260,7 @@
       call h5sget_simple_extent_dims_f(ispace_id, h_dims, h_maxdims, ierror)
       if (ierror.lt.0) then    ! returns rank in ierror
         write (*,*) 'error: h5sget_simple_extent_dims_f ', ierror
-        stop 'error: h5sget_simple_extent_dims_f'
+        call h5_fatal('h5sget_simple_extent_dims_f','ierror')
       endif
       maxndim=ierror
 
@@ -270,21 +273,21 @@
   110 format (/,' dataset : ', a)
   115 format (1x,a,20i4)
 
-      if (maxndim.gt.max_dimen) stop 'maximum dimensions exceeded'
+      if (maxndim.gt.max_dimen) call h5_fatal('read_integer2d','maximum dimensions exceeded')
       if (maxndim.ne.2) then
         write (*,*) 'invalid number of dimensions in read_integer2d'
         write (*,*) '  expecting 2, found ', maxndim
-        stop 'invalid number of dimensions in read_integer2d'
+        call h5_fatal('read_integer2d','invalid number of dimensions')
       endif
 
-      if (h_dims(1).ne.idm) stop 'idm error'
-      if (h_dims(2).ne.jdm) stop 'jdm error'
+      if (h_dims(1).ne.idm) call h5_fatal('read_integer2d','idm error')
+      if (h_dims(2).ne.jdm) call h5_fatal('read_integer2d','jdm error')
 
 ! Read data from dataset
       call h5dread_f(dset_id, H5T_NATIVE_INTEGER, ivar, h_dims, ierror)
       if (ierror.ne.0) then
-        write(*,*) 'error reading  data set ',trim(dataset)
-        stop
+        write (*,*) 'error reading data set ',trim(dataset)
+        call h5_fatal('read_integer2d','error reading data set '//trim(dataset))
       endif
 
       call h5sclose_f(ispace_id, ierror)
@@ -409,15 +412,15 @@
 
       call h5dopen_f(file_id, dataset, dset_id, ierror)
       if (ierror.lt.0) then
-        write(*,'(3a)')   'error: data set ',trim(dataset), ' could not be opened'
-        write(*,'(a,i8)') 'error code ', ierror
+        write (*,'(3a)')   'error: data set ',trim(dataset), ' could not be opened'
+        write (*,'(a,i8)') 'error code ', ierror
         return
       endif
 
       call h5dget_space_f(dset_id, ispace_id, ierror)              !Assign a dataspace based on the dataset
       if (ierror.ne.0) then
         write (*,*) 'error: h5dget_space_f ', ierror
-        stop 'error: h5dget_space_f'
+        call h5_fatal('h5dget_space_f','ierror')
       endif
 
 ! Determine number of discrete subunits for each dimensions
@@ -426,7 +429,7 @@
       call h5sget_simple_extent_dims_f(ispace_id, h_dims, h_maxdims, ierror)
       if (ierror.lt.0) then    ! returns rank in ierror
         write (*,*) 'error: h5sget_simple_extent_dims_f ', ierror
-        stop 'error: h5sget_simple_extent_dims_f'
+        call h5_fatal('h5sget_simple_extent_dims_f','ierror')
       endif
       maxndim=ierror
 
@@ -439,11 +442,13 @@
   110 format (/,' dataset : ', a)
   115 format (1x,a,20i4)
 
-      if (maxndim.gt.max_dimen) stop 'maximum dimensions exceeded'
-      if (maxndim.ne.1) then
+!  allow size 0 for SCALAR data
+
+      if (maxndim.gt.max_dimen) call h5_fatal('read_double1d','maximum dimensions exceeded')
+      if (maxndim.ne.1 .and. maxndim.ne.0) then
         write (*,*) 'invalid number of dimensions in read_double1d'
-        write (*,*) '  expecting 1, found ', maxndim
-        stop 'invalid number of dimensions in read_double1d'
+        write (*,*) '  expecting 0 or 1, found ', maxndim
+        call h5_fatal('read_double1d','invalid number of dimensions')
       endif
 
       idm =int(h_dims(1))
@@ -461,8 +466,8 @@
 ! Read data from dataset
       call h5dread_f(dset_id, H5T_NATIVE_DOUBLE, xvar, h_dims, ierror)
       if (ierror.ne.0) then
-        write(*,*) 'error reading  data set ',trim(dataset)
-        stop
+        write (*,*) 'error reading data set ',trim(dataset)
+        call h5_fatal ('read_double1d', 'error reading data set '//trim(dataset))
       endif
 
       call h5sclose_f(ispace_id, ierror)
@@ -516,15 +521,15 @@
 
       call h5dopen_f(file_id, dataset, dset_id, ierror)
       if (ierror.lt.0) then
-        write(*,'(3a)')   'error: data set ',trim(dataset), ' could not be opened'
-        write(*,'(a,i8)') 'error code ', ierror
+        write (*,'(3a)')   'error: data set ',trim(dataset), ' could not be opened'
+        write (*,'(a,i8)') 'error code ', ierror
         return
       endif
 
       call h5dget_space_f(dset_id, ispace_id, ierror)              !Assign a dataspace based on the dataset
       if (ierror.ne.0) then
         write (*,*) 'error: h5dget_space_f ', ierror
-        stop 'error: h5dget_space_f'
+        call h5_fatal('h5dget_space_f','ierror')
       endif
 
 ! Determine number of discrete subunits for each dimensions
@@ -533,7 +538,7 @@
       call h5sget_simple_extent_dims_f(ispace_id, h_dims, h_maxdims, ierror)
       if (ierror.lt.0) then    ! returns rank in ierror
         write (*,*) 'error: h5sget_simple_extent_dims_f ', ierror
-        stop 'error: h5sget_simple_extent_dims_f'
+        call h5_fatal('h5sget_simple_extent_dims_f','ierror')
       endif
       maxndim=ierror
 
@@ -546,11 +551,11 @@
   110 format (/,' dataset : ', a)
   115 format (1x,a,20i4)
 
-      if (maxndim.gt.max_dimen) stop 'maximum dimensions exceeded'
+      if (maxndim.gt.max_dimen) call h5_fatal('read_double2d','maximum dimensions exceeded')
       if (maxndim.ne.2) then
         write (*,*) 'invalid number of dimensions in read_double2d'
         write (*,*) '  expecting 2, found ', maxndim
-        stop 'invalid number of dimensions in read_double2d'
+        call h5_fatal('read_double2d','invalid number of dimensions')
       endif
 
       if (idm1.ne.int(h_dims(1)).or. &
@@ -564,8 +569,8 @@
 ! Read data from dataset
       call h5dread_f(dset_id, H5T_NATIVE_DOUBLE, xvar, h_dims, ierror)
       if (ierror.ne.0) then
-        write(*,*) 'error reading  data set ',trim(dataset)
-        stop
+        write (*,*) 'error reading data set ',trim(dataset)
+        call h5_fatal('read_double2d','error reading data set '//trim(dataset))
       endif
 
       call h5sclose_f(ispace_id, ierror)
@@ -618,15 +623,15 @@
 
       call h5dopen_f(file_id, dataset, dset_id, ierror)
       if (ierror.lt.0) then
-        write(*,'(3a)')   'error: data set ',trim(dataset), ' could not be opened'
-        write(*,'(a,i8)') 'error code ', ierror
+        write (*,'(3a)')   'error: data set ',trim(dataset), ' could not be opened'
+        write (*,'(a,i8)') 'error code ', ierror
         return
       endif
 
       call h5dget_space_f(dset_id, ispace_id, ierror)              !Assign a dataspace based on the dataset
       if (ierror.ne.0) then
         write (*,*) 'error: h5dget_space_f ', ierror
-        stop 'error: h5dget_space_f'
+        call h5_fatal('h5dget_space_f','ierror')
       endif
 
 ! Determine number of discrete subunits for each dimensions
@@ -635,7 +640,7 @@
       call h5sget_simple_extent_dims_f(ispace_id, h_dims, h_maxdims, ierror)
       if (ierror.lt.0) then    ! returns rank in ierror
         write (*,*) 'error: h5sget_simple_extent_dims_f ', ierror
-        stop 'error: h5sget_simple_extent_dims_f'
+        call h5_fatal('h5sget_simple_extent_dims_f','ierror')
       endif
       maxndim=ierror
 
@@ -648,11 +653,11 @@
   110 format (/,' dataset : ', a)
   115 format (1x,a,20i4)
 
-      if (maxndim.gt.max_dimen) stop 'maximum dimensions exceeded'
+      if (maxndim.gt.max_dimen) call h5_fatal('read_double3d','maximum dimensions exceeded')
       if (maxndim.ne.3) then
         write (*,*) 'invalid number of dimensions in read_double3d'
         write (*,*) '  expecting 3, found ', maxndim
-        stop 'invalid number of dimensions in read_double3d'
+        call h5_fatal('read_double3d','invalid number of dimensions')
       endif
 
       if (idm1.ne.int(h_dims(1)) .or. &
@@ -667,8 +672,8 @@
 ! Read data from dataset
       call h5dread_f(dset_id, H5T_NATIVE_DOUBLE, xvar, h_dims, ierror)
       if (ierror.ne.0) then
-        write(*,*) 'error reading  data set ',trim(dataset)
-        stop
+        write (*,*) 'error reading data set ',trim(dataset)
+        call h5_fatal('read_double3d','error reading dataset')
       endif
 
       call h5sclose_f(ispace_id, ierror)
@@ -725,15 +730,15 @@
 
       call h5dopen_f(file_id, dataset, dset_id, ierror)
       if (ierror.lt.0) then
-        write(*,'(3a)')   'error: data set ',trim(dataset), ' could not be opened'
-        write(*,'(a,i8)') 'error code ', ierror
+        write (*,'(3a)')   'error: data set ',trim(dataset), ' could not be opened'
+        write (*,'(a,i8)') 'error code ', ierror
         return
       endif
 
       call h5dget_space_f(dset_id, ispace_id, ierror)              !Assign a dataspace based on the dataset
       if (ierror.ne.0) then
         write (*,*) 'error: h5dget_space_f ', ierror
-        stop 'error: h5dget_space_f'
+        call h5_fatal('h5dget_space_f','ierror')
       endif
 
 ! Determine number of discrete subunits for each dimensions
@@ -742,7 +747,7 @@
       call h5sget_simple_extent_dims_f(ispace_id, h_dims, h_maxdims, ierror)
       if (ierror.lt.0) then    ! returns rank in ierror
         write (*,*) 'error: h5sget_simple_extent_dims_f ', ierror
-        stop 'error: h5sget_simple_extent_dims_f'
+        call h5_fatal('h5sget_simple_extent_dims_f','ierror')
       endif
       maxndim=ierror
 
@@ -755,11 +760,11 @@
   110 format (/,' dataset : ', a)
   115 format (1x,a,20i4)
 
-      if (maxndim.gt.max_dimen) stop 'maximum dimensions exceeded'
+      if (maxndim.gt.max_dimen) call h5_fatal('read_double4d','maximum dimensions exceeded')
       if (maxndim.ne.4) then
         write (*,*) 'invalid number of dimensions in read_double4d'
         write (*,*) '  expecting 4, found ', maxndim
-        stop 'invalid number of dimensions in read_double4d'
+        call h5_fatal('read_double4d','invalid number of dimensions')
       endif
 
       if (idm1.ne.int(h_dims(1)) .or. &
@@ -775,8 +780,8 @@
 ! Read data from dataset
       call h5dread_f(dset_id, H5T_NATIVE_DOUBLE, xvar, h_dims, ierror)
       if (ierror.ne.0) then
-        write(*,*) 'error reading  data set ',trim(dataset)
-        stop
+        write (*,*) 'error reading data set ',trim(dataset)
+        call h5_fatal('read_double4d','error reading dataset')
       endif
 
       call h5sclose_f(ispace_id, ierror)
@@ -827,8 +832,8 @@
 
       call h5dopen_f(file_id, dataset, dset_id, ierror)
       if (ierror.lt.0) then
-        write(*,'(3a)')   'error: data set ',trim(dataset), ' could not be opened'
-        write(*,'(a,i8)') 'error code ', ierror
+        write (*,'(3a)')   'error: data set ',trim(dataset), ' could not be opened'
+        write (*,'(a,i8)') 'error code ', ierror
         return
       endif
 
@@ -837,7 +842,7 @@
       call h5dget_type_f(dset_id, type_id, ierror)
       if (ierror.ne.0) then
         write (*,*) 'error: h5dget_type_f ', ierror
-        stop        'error: h5dget_type_f'
+        call h5_fatal('h5dget_type_f','ierror')
       endif
 
 !  note that type_id does not match H5T_NATIVE_CHARACTER or H5T_STRING
@@ -845,22 +850,22 @@
       call h5tget_size_f(type_id, strlen, ierror)
       if (ierror.ne.0) then
         write (*,*) 'error: h5dget_size_f ', ierror
-        stop        'error: h5dget_size_f'
+        call h5_fatal('h5dget_size_f','ierror')
       endif
 
       if (strlen.gt.len(stringout)) then
         write (*,*) 'file  strlen   ', strlen
         write (*,*) 'input strlenin ', len(stringout)
         write (*,*) 'error: insufficient string length defined for read'
-        stop        'error: insufficient string length defined for read'
+        call h5_fatal('read_string','insufficient string length defined for read')
       endif
 
 ! Read data from dataset
 
       call h5dread_f(dset_id, type_id, stringout, h_dims, ierror)
       if (ierror.ne.0) then
-        write(*,*) 'error: h5dread_f reading  data set ',trim(dataset)
-        stop
+        write (*,*) 'error: h5dread_f reading data set ',trim(dataset)
+        call h5_fatal('read_string','error reading dataset')
       endif
 
       do iht=1, strlen    ! search for null
@@ -920,8 +925,8 @@
 
       call h5dopen_f(file_id, dataset, dset_id, ierror)
       if (ierror.lt.0) then
-        write(*,'(3a)')   'error: data set ',trim(dataset), ' could not be opened'
-        write(*,'(a,i8)') 'error code ', ierror
+        write (*,'(3a)')   'error: data set ',trim(dataset), ' could not be opened'
+        write (*,'(a,i8)') 'error code ', ierror
         return
       endif
 
@@ -930,7 +935,7 @@
       call h5dget_type_f(dset_id, type_id, ierror)
       if (ierror.ne.0) then
         write (*,*) 'error: h5dget_type_f ', ierror
-        stop        'error: h5dget_type_f'
+        call h5_fatal('h5dget_type_f','ierror')
       endif
 
 !  note that type_id does not match H5T_NATIVE_CHARACTER or H5T_STRING
@@ -940,7 +945,7 @@
       call h5dget_space_f(dset_id, ispace_id, ierror)       !Assign a dataspace based on the dataset
       if (ierror.ne.0) then
         write (*,*) 'error: h5dget_space_f ', ierror
-        stop        'error: h5dget_space_f'
+        call h5_fatal('h5dget_space_f','ierror')
       endif
 
 ! Determine number of discrete subunits for each dimensions
@@ -949,7 +954,7 @@
       call h5sget_simple_extent_dims_f(ispace_id, h_dims, h_maxdims, ierror)
       if (ierror.lt.0) then    ! returns rank in ierror
         write (*,*) 'error: h5sget_simple_extent_dims_f ', ierror
-        stop        'error: h5sget_simple_extent_dims_f'
+        call h5_fatal('h5sget_simple_extent_dims_f','ierror')
       endif
       maxndim=ierror
 
@@ -962,12 +967,12 @@
   110 format (/,' dataset : ', a)
   115 format (1x,a,20i4)
 
-      if (maxndim.gt.max_dimen) stop 'maximum dimensions exceeded'
+      if (maxndim.gt.max_dimen) call h5_fatal('read_string1d','maximum dimensions exceeded')
       if (maxndim.ne.2) then
          write (*,*) 'maxndim  = ', maxndim
          write (*,*) 'expecting 2'
          write (*,*) 'max_dimen= ', max_dimen
-         stop 'string1d invalid number of dimensions'
+         call h5_fatal('read_string1d','invalid number of dimensions')
       endif
 
 !--- Note that the length of the character strings returned from the read
@@ -983,8 +988,8 @@
 
       call h5dread_f(dset_id, type_id, htemp, h_dims, ierror)
       if (ierror.ne.0) then
-        write(*,*) 'error: h5dread_f reading  data set ',trim(dataset)
-        stop
+        write (*,*) 'error: h5dread_f reading data set ',trim(dataset)
+        call h5_fatal('read_string1d','error reading dataset')
       endif
 
 ! Close datatype and dataset
@@ -1075,28 +1080,27 @@
 ! Create the dataspace (information about array)
 
       call h5screate_simple_f(irank, idimht, dspace_id, ierror)
-      if (ierror.ne.0) stop 'ierror: h5screate_simple'
+      if (ierror.ne.0) call h5_fatal('h5screate_simple_f','ierror')
 
 ! Create the dataset with default properties.
 
       call h5dcreate_f(file_id, dataset, dtype_id, dspace_id, dset_id, ierror)
-      if (ierror.ne.0) stop 'ierror: h5dcreate_f'
+      if (ierror.ne.0) call h5_fatal('h5dcreate_f','ierror')
 
 ! Write dataset
 
       call h5dwrite_f(dset_id, dtype_id, xvar, idimht, ierror)
-      if (ierror.ne.0) stop 'ierror: h5dwrite_f'
+      if (ierror.ne.0) call h5_fatal('h5dwrite_f','ierror')
 
 ! End access to the dataset and release resources used by it. (release dataset id)
 
       call h5dclose_f(dset_id, ierror)
-      if (ierror.ne.0) stop 'ierror: h5dclose_f'
+      if (ierror.ne.0) call h5_fatal('h5dclose_f','ierror')
 
 ! Terminate access to the data space.  (release dataspace id)
 
       call h5sclose_f(dspace_id, ierror)
-      if (ierror.ne.0) stop 'ierror: h5sclose_f'
-
+      if (ierror.ne.0) call h5_fatal('h5sclose_f','ierror')
 
       return
       end subroutine hwrite_real
@@ -1154,27 +1158,27 @@
 !*** you could use "h5screate_f(H5S_SCALAR_F, dspace_id, ierror)   (not verified)
 
       call h5screate_simple_f(irank, idimht, dspace_id, ierror)
-      if (ierror.ne.0) stop 'ierror: h5screate_simple'
+      if (ierror.ne.0) call h5_fatal('h5screate_simple','ierror')
 
 ! Create the dataset with default properties.
 
       call h5dcreate_f(file_id, dataset, dtype_id, dspace_id, dset_id, ierror)
-      if (ierror.ne.0) stop 'ierror: h5dcreate_f'
+      if (ierror.ne.0) call h5_fatal('h5dcreate_f','ierror')
 
 ! Write dataset
 
       call h5dwrite_f(dset_id, dtype_id, xvar, idimht, ierror)
-      if (ierror.ne.0) stop 'ierror: h5dwrite_f'
+      if (ierror.ne.0) call h5_fatal('h5dwrite_f','ierror')
 
 ! End access to the dataset and release resources used by it. (release dataset id)
 
       call h5dclose_f(dset_id, ierror)
-      if (ierror.ne.0) stop 'ierror: h5dclose_f'
+      if (ierror.ne.0) call h5_fatal('h5dclose_f','ierror')
 
 ! Terminate access to the data space.  (release dataspace id)
 
       call h5sclose_f(dspace_id, ierror)
-      if (ierror.ne.0) stop 'ierror: h5sclose_f'
+      if (ierror.ne.0) call h5_fatal('h5sclose_f','ierror')
 
 
       return
@@ -1235,27 +1239,27 @@
 !*** you could use "h5screate_f(H5S_SCALAR_F, dspace_id, ierror)   (not verified)
 
       call h5screate_simple_f(irank, idimht, dspace_id, ierror)
-      if (ierror.ne.0) stop 'ierror: h5screate_simple'
+      if (ierror.ne.0) call h5_fatal('ierror: h5screate_simple','ierror')
 
 ! Create the dataset with default properties.
 
       call h5dcreate_f(file_id, dataset, dtype_id, dspace_id, dset_id, ierror)
-      if (ierror.ne.0) stop 'ierror: h5dcreate_f'
+      if (ierror.ne.0) call h5_fatal('ierror: h5dcreate_f','ierror')
 
 ! Write dataset
 
       call h5dwrite_f(dset_id, dtype_id, xvar, idimht, ierror)
-      if (ierror.ne.0) stop 'ierror: h5dwrite_f'
+      if (ierror.ne.0) call h5_fatal('ierror: h5dwrite_f','ierror')
 
 ! End access to the dataset and release resources used by it. (release dataset id)
 
       call h5dclose_f(dset_id, ierror)
-      if (ierror.ne.0) stop 'ierror: h5dclose_f'
+      if (ierror.ne.0) call h5_fatal('ierror: h5dclose_f','ierror')
 
 ! Terminate access to the data space.  (release dataspace id)
 
       call h5sclose_f(dspace_id, ierror)
-      if (ierror.ne.0) stop 'ierror: h5sclose_f'
+      if (ierror.ne.0) call h5_fatal('ierror: h5sclose_f','ierror')
 
       return
       end subroutine hwrite_integer
@@ -1311,13 +1315,13 @@
 !!    print *, 'h5dwrite_f returns', ierror
 
       call h5tclose_f(type_id, ierror)
-      if (ierror.ne.0) stop 'ierror: h5tclose_f'
+      if (ierror.ne.0) call h5_fatal('ierror: h5tclose_f','ierror')
 
       call h5dclose_f(dset_id, ierror)
-      if (ierror.ne.0) stop 'ierror: h5dclose_f'
+      if (ierror.ne.0) call h5_fatal('ierror: h5dclose_f','ierror')
 
       call h5sclose_f(dspace_id, ierror)
-      if (ierror.ne.0) stop 'ierror: h5sclose_f'
+      if (ierror.ne.0) call h5_fatal('ierror: h5sclose_f','ierror')
 
       return
       end subroutine hwrite_string
@@ -1367,7 +1371,7 @@
       write (*,*)         ' debug: size           : ', idimht(1:irank)
       write (*,*)         ' debug: len            : ', attrlen
 !att  call h5screate_simple_f(irank, idimht, aspace_id, ierror)
-!att  if (ierror.ne.0) stop 'ierror: h5screate_simple'
+!att  if (ierror.ne.0) call h5_fatal('ierror: h5screate_simple','ierror')
 
       write (*,*) '*** WARNING: the ability to write arrays of strings is not working ***'   ! fix
       write (*,*) '*** WARNING: This needs to be fixed                                ***'   ! fix
@@ -1381,25 +1385,25 @@
 
       call h5tcopy_f(H5T_NATIVE_CHARACTER, type_id, ierror)
       call h5tset_size_f(type_id, attrlen, ierror)
-      if (ierror.ne.0) stop 'ierror: h5tset_size_f'
+      if (ierror.ne.0) call h5_fatal('ierror: h5tset_size_f','ierror')
 
 ! Create the dataspace
 
       call h5screate_f (H5S_SCALAR_F, dspace_id, ierror)
-      if (ierror.ne.0) stop 'ierror: h5screate_f'
+      if (ierror.ne.0) call h5_fatal('ierror: h5screate_f','ierror')
 
 ! Create the dataset with default properties.
 
       call h5dcreate_f(file_id, dataset, type_id, dspace_id, dset_id, ierror)
-      if (ierror.ne.0) stop 'ierror: h5dcreate_f'
+      if (ierror.ne.0) call h5_fatal('ierror: h5dcreate_f','ierror')
 
 ! Create dataset attribute.
 
       call h5dwrite_f (dset_id, type_id, namex, idimht, ierror)
-      if (ierror.ne.0) stop 'ierror: h5dwrite_f'
+      if (ierror.ne.0) call h5_fatal('ierror: h5dwrite_f','ierror')
 
 !att  call h5acreate_f(dset_id, dataset, type_id, aspace_id, attr_id, ierror)
-!att  if (ierror.ne.0) stop 'ierror: h5acreate_f'
+!att  if (ierror.ne.0) call h5_fatal('ierror: h5acreate_f','ierror')
 
 ! Write the attribute data.
 
@@ -1412,11 +1416,11 @@
 ! Close the dataset
 
       call h5tclose_f(type_id, ierror)
-      if (ierror.ne.0) stop 'ierror: h5tclose_f'
+      if (ierror.ne.0) call h5_fatal('ierror: h5tclose_f','ierror')
       call h5dclose_f(dset_id, ierror)
-      if (ierror.ne.0) stop 'ierror: h5dclose_f'
+      if (ierror.ne.0) call h5_fatal('ierror: h5dclose_f','ierror')
       call h5sclose_f(dspace_id, ierror)
-      if (ierror.ne.0) stop 'ierror: h5sclose_f'
+      if (ierror.ne.0) call h5_fatal('ierror: h5sclose_f','ierror')
 
       return
       end subroutine hwrite_stringx
@@ -1481,8 +1485,8 @@
 
       call h5dopen_f(file_id, dataset, dset_id, ierror)
       if (ierror<0) then
-        write(*,*) 'error: data set ',trim(dataset), ' could not be opened'
-        write(*,*) 'error code ', ierror
+        write (*,*) 'error: data set ',trim(dataset), ' could not be opened'
+        write (*,*) 'error code ', ierror
         return
       endif
 
@@ -1491,7 +1495,7 @@
       call h5dget_type_f(dset_id, type_id, ierror)
       if (ierror.ne.0) then
         write (*,*) 'error: h5dget_type_f ', ierror
-        stop        'error: h5dget_type_f'
+        call h5_fatal('h5dget_type_f', 'ierror')
       endif
 
 !*** the following does not work
@@ -1510,7 +1514,7 @@
       call h5dget_space_f(dset_id, ispace_id, ierror)       !Assign a dataspace based on the dataset
       if (ierror.ne.0) then
         write (*,*) 'error: h5dget_space_f ', ierror
-        stop 'error: h5dget_space_f'
+        call h5_fatal('error: h5dget_space_f','ierror')
       endif
 
 ! Determine number of discrete subunits for each dimensions
@@ -1519,11 +1523,11 @@
       call h5sget_simple_extent_dims_f(ispace_id, h_dims, h_maxdims, ierror)
       if (ierror.lt.0) then    ! returns rank in ierror
         write (*,*) 'error: h5sget_simple_extent_dims_f ', ierror
-        stop 'error: h5sget_simple_extent_dims_f'
+        call h5_fatal('error: h5sget_simple_extent_dims_f','ierror')
       endif
       maxndim=ierror
 
-      if (maxndim.gt.max_dimen) stop 'maximum dimensions exceeded'
+      if (maxndim.gt.max_dimen) call h5_fatal('h5info','maximum dimensions exceeded')
 
       if (ifdebug) then
         write (*,110) trim(dataset)
@@ -1547,6 +1551,25 @@
       return
       end subroutine h5info
 
+!=======================================================================
+!
+!   Subroutine to call if fatal error
+!
+!   DO NOT USE STOP - Regression tests need an error code returned
+!
+!=======================================================================
+      subroutine h5_fatal(subr,label)
+      implicit none
+      character(len=*) :: subr, label
+
+      write (*,*) 'Fatal error in HDF subroutine ', trim(subr)
+      write (*,*) 'Error: ', trim(label)
+
+! use call to exit instead of stop to return an error code
+
+      call exit(80)       ! return error code
+
+      end subroutine h5_fatal
 !=======================================================================
 
       end module mod_hdftools
