@@ -1,3 +1,4 @@
+   program mpactread
 !=======================================================================
 !
 !  Program to read MPACT HDF output file and print summary
@@ -15,7 +16,6 @@
 !             - read exposure values
 !
 !-----------------------------------------------------------------------
-      program mpactread
       use  hdf5
       use  mod_hdftools
       implicit none
@@ -340,7 +340,8 @@
 
 ! read exposure value at this statepoint
 
-        dataset=trim(group_name)//'exposure_GWDMT'
+!alt    dataset=trim(group_name)//'exposure_GWDMT'
+        dataset=trim(group_name)//'exposure'
         call hdf5_read_double(file_id, dataset, xexpo)
 
         dataset=trim(group_name)//'keff'
@@ -418,13 +419,17 @@
 
 !--- print maps
 
-        if (if3d) call print_pin_map(npin, kd, power, nassm)
+        call stat3d('pin_powers', npin,  kd, nassm, axial, power)
 
-        if (if2d) call print_pin_map(npin, 1,  pin2, nassm)
+        if (if3d) call print_pin_map('power_3d', npin, kd, nassm, power)
+
+        if (if2d) call print_pin_map('power_2d', npin, 1,  nassm, pin2)
 
         if (if2da) call print2d_assm_map(npin, nassm, pin2, icore, jcore, mapcore, xlabel, ylabel)
 
-!!      if (if1d) call print1d(npin, kd, nassm, power, pin2, axial, icore, jcore, mapcore)
+        if (if1d) then
+          call print1d('pin_powers', npin, kd, nassm, power, axial)
+        endif
 
         write (*,*)
 
@@ -507,6 +512,8 @@
       k3min(:)=0         ! 3D core min i, j, k, n
       k2max(:)=0         ! 2D core max i, j, n
       k2min(:)=0         ! 2D core min i, j, n
+
+      write (*,'(/,1x,a)') 'Collapsing 3D edits to 2D'
 
 !--- check 3D normalization - loop over mapcore in case symmetry was used
 
@@ -601,69 +608,6 @@
       return
       end subroutine collapse
 
-!=======================================================================
-!
-!  Print pin powers by assembly using pretty output
-!
-!=======================================================================
-      subroutine print_pin_map(npin, kd, power, nassm)
-!!    use mod_input, only : nassm, assmmap
-      implicit none
-      integer, intent(in) :: npin, kd, nassm
-      real(8), intent(in) :: power(npin,npin,kd,nassm)
-
-      integer            :: i, j, m
-      integer            :: ia, klev, kpin
-      real(8)            :: pp, pave, pmin, pmax
-      character(len=150) :: line
-
-      if (npin.gt.20) then
-        write (*,*) '**** too many pins across to print nice maps ****'
-        return
-      endif
-
-!**** To-do: read labels from input and use in edits
-
-      do ia=1, nassm        ! loop over assemblies
-        do klev=kd, 1, -1   ! loop over axial levels
-!!        write (*,'(/,1x,a,i3,2a)') 'Assembly ', ia,'    type ', trim(assmmap(nassm))   ! no types to mpact
-          write (*,'(/,1x,a,i3,2a)') 'Assembly ', ia
-          if (kd.gt.1) then
-             write (*,'(  1x,a,i3)') 'Level    ', klev
-          else
-             write (*,*) '2D collapse'
-          endif
-          pave=0.0
-          kpin=0
-          pmin=1.0d20
-          pmax=0.0d0
-          do i=1, npin
-            line=' '
-            m=0
-            do j=1, npin
-              pp=power(i,j,klev,ia)
-              if (pp.eq.0.0) then
-                line(m+1:m+7)='   --- '
-              else
-                write (line(m+1:m+7),'(f7.4)') pp
-                pave=pave+pp
-                kpin=kpin+1
-                pmin=min(pmin,pp)
-                pmax=max(pmax,pp)
-              endif
-              m=m+7
-            enddo
-            write (*,'(1x,a)') line(1:m)
-          enddo
-          if (kpin.gt.0) pave=pave/real(kpin)
-          write (*,210) kpin, pave, pmin, pmax
-
-        enddo    ! klev
-      enddo      ! ia
-  210 format (5x,'number of hot pins',i4,'    average=',f7.4,'   min=', f7.4,'   max=', f7.4)
-
-      return
-      end subroutine print_pin_map
 !=======================================================================
 !
 !  Subroutine to print 2D Assembly Maps

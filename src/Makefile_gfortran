@@ -17,14 +17,14 @@ HDFOPT =
 
 all:    hunittest.exe makehdf.exe mpactread.exe mpactxmf.exe ctfread.exe veradiff.exe
 
-mpactread.exe: Mod_hdftools.o mpactread.o
-	$(FC) $(FFLAGS) Mod_hdftools.o mpactread.o $(HDFOPT) -o $@
+mpactread.exe: Mod_hdftools.o mpactread.o output_utils.o
+	$(FC) $(FFLAGS) Mod_hdftools.o mpactread.o output_utils.o $(HDFOPT) -o $@
 
 mpactxmf.exe: Mod_hdftools.o mpactxmf.o
 	$(FC) $(FFLAGS) Mod_hdftools.o mpactxmf.o $(HDFOPT) -o $@
 
-ctfread.exe: Mod_hdftools.o ctfread.o
-	$(FC) $(FFLAGS) Mod_hdftools.o ctfread.o $(HDFOPT) -o $@
+ctfread.exe: Mod_hdftools.o ctfread.o output_utils.o
+	$(FC) $(FFLAGS) Mod_hdftools.o ctfread.o output_utils.o $(HDFOPT) -o $@
 
 hunittest.exe: Mod_hdftools.o hunittest.o
 	$(FC) $(FFLAGS) Mod_hdftools.o hunittest.o $(HDFOPT) -o $@
