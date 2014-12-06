@@ -1,4 +1,4 @@
-    program veradiff
+   program veradiff
 !=======================================================================
 !
 !  Program to compare twoH VERA HDF output file and print summary
@@ -174,7 +174,8 @@
       real(8)            :: xkdiff
       real(8)            :: xktol=10.0d0   ! eigenvalue tolerance (pcm)
 
-      real(8)            :: rms
+      real(8)            :: xmax           ! max pin difference (%)
+      real(8)            :: pintol=0.5d0   ! pin power tolerance (%)
 
       character(len=80)  :: dataset
       character(len=12)  :: statename
@@ -291,12 +292,16 @@
       endif
 
       if (.not.ifmissing) then
-        call pin_compare(file_id1, file_id2, dataset, rms)
-        write (*,*) 'No PIN tolerance used'
+        call pin_compare(file_id1, file_id2, dataset, xmax)
+        write (*,320) pintol
+        if (abs(xmax).lt.pintol) then
+          write (*,*) 'PASS - pin power difference is less than tolerance'
+        else
+          nfail=nfail+1
+          write (*,*) 'FAIL - pin power difference exceeds tolerance'
+        endif
       endif
-
-! ****** NOTE THAT NO TOLERANCE IS SET, PIN POWER DIFFERENCES *******
-! ******        IS JUST INFORMATIONAL AT THIS POINT           *******
+  320 format (3x,'tolerance = ', f5.2,' %')
 
 !--- return
 
@@ -308,29 +313,33 @@
 !  Subroutine to read two pin_power datasets and calculate RMS
 !
 !=======================================================================
-      subroutine pin_compare(file_id1, file_id2, dataset, rms)
+      subroutine pin_compare(file_id1, file_id2, dataset, xmax)
       use hdf5
       use mod_hdftools, only : h5info, hdf5_read_double
       implicit none
       integer(hid_t),   intent(in)  :: file_id1, file_id2
       character(len=*), intent(in)  :: dataset
-      real(8),          intent(out) :: rms
+      real(8),          intent(out) :: xmax   ! return max difference (%)
 
       integer :: ip, jp, k, na, np
       integer :: nassm, kd, npin
       integer :: ndim         ! number of array dimensions
       integer :: idim(10)     ! array dimension sizes
       integer :: itype        !
+      integer :: kmax(4)      ! location of max difference
+      integer :: lmax(4)      ! location of max power
 
       logical :: ifbad        ! flag for bad data
 
       real(8)              :: p1, dd, dmax
+      real(8)              :: pmax1, pave1
+      real(8)              :: rms
       real(8), allocatable :: power1(:,:,:,:)
       real(8), allocatable :: power2(:,:,:,:)
 
 !  find dimensions so we can allocate
 
-      rms=999999.0d0   ! set high in case reads fail
+      xmax=999999.0d0   ! set high in case reads fail
       ifbad=.false.
 
       call h5info(file_id1, dataset, itype, ndim, idim)
@@ -360,7 +369,7 @@
         ifbad=.true.
         write (*,*) 'invalid npin in pin data'
       endif
-      if (ifbad) return   ! return with big RMS
+      if (ifbad) return   ! return with big xmax
 
       allocate (power1(nassm, kd, npin, npin))
       allocate (power2(nassm, kd, npin, npin))
@@ -371,6 +380,10 @@
       rms=0.0d0
       dmax=0.0d0
       np=0
+      kmax(:)=0     ! location of max difference
+      lmax(:)=0     ! location of max power
+      pmax1=0.0d0   ! max power of distribution 1
+      pave1=0.0d0   ! ave power of distribution 1
       do ip=1, npin
         do jp=1, npin
           do k=1, kd
@@ -378,25 +391,50 @@
               p1=power1(na,k,jp,ip)
               if (p1.gt.0.0d0) then
                 np=np+1
-                dd=power2(na,k,jp,ip)-p1
+                pave1=pave1+p1
+                if (p1.gt.pmax1) then
+                  pmax1=p1
+                  lmax(1)=ip
+                  lmax(2)=jp
+                  lmax(3)=k
+                  lmax(4)=na
+                endif
+                dd=abs(power2(na,k,jp,ip)-p1)
                 rms=rms+dd*dd
-                dmax=max(dmax,dd)
+                if (dd.gt.dmax) then
+                  dmax=dd
+                  kmax(1)=ip
+                  kmax(2)=jp
+                  kmax(3)=k
+                  kmax(4)=na
+                endif
               endif
             enddo
           enddo
         enddo
       enddo
 
-      if (np.gt.0) rms=sqrt(rms/dble(np))
+      if (np.gt.0) then
+        rms=sqrt(rms/dble(np))
+        pave1=pave1/dble(np)
+      endif
+
+      xmax=dmax*100.0d0
  
       deallocate (power2)
       deallocate (power1)
 
-      write (*,'(/1x,a)') 'Pin Power comparisons'
-      write (*,*)  ' num values=', np
-      write (*,30) 'max', dmax*100.0d0
-      write (*,30) 'rms', rms*100.0d0
-  30  format (2x,a,' difference =', f10.4,' %')
+      write (*,'(/1x,a)') 'Pin Power comparisons (averages do not include volume weight)'
+      write (*,120) np
+      write (*,126) pmax1, lmax(:)
+      write (*,125) pave1
+      write (*,131) dmax*100.0d0, kmax(:)
+      write (*,130) rms*100.0d0
+ 120  format (3x,'num values',5x,i10)
+ 125  format (3x,'ave power1     ', f10.4)
+ 126  format (3x,'max power1     ', f10.4,'   at (ip,jp,k,na) ', 4i4)
+ 130  format (3x,'rms difference ', f10.4,' %')
+ 131  format (3x,'max difference ', f10.4,' % at (ip,jp,k,na) ', 4i4)
 
       return
       end subroutine pin_compare
