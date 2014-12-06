@@ -1,7 +1,7 @@
    program veradiff
 !=======================================================================
 !
-!  Program to compare twoH VERA HDF output file and print summary
+!  Program to compare two VERA HDF output file and print summary
 !
 !  Copyright (c) 2014 Core Physics, Inc.
 !
@@ -21,6 +21,7 @@
 !  2014/01/27 - compare boron if dataset is present on file
 !  2014/04/26 - add comparison for multiple statepoints - see #3164
 !  2014/11/01 - added pin power comparisons             - see #3430
+!  2014/12/05 - added pin power tolerance               - see #3430
 !
 !
 !--------------------------------------------------------------------------------
