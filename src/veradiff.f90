@@ -327,13 +327,16 @@
       integer :: ndim         ! number of array dimensions
       integer :: idim(10)     ! array dimension sizes
       integer :: itype        !
-      integer :: kmax(4)      ! location of max difference
-      integer :: lmax(4)      ! location of max power
+      integer :: kmax1(4)     ! location of max difference file 1
+      integer :: kmax2(4)     ! location of max difference file 2
+      integer :: lmax1(4)     ! location of max power file 1
+      integer :: lmax2(4)     ! location of max power file 2
 
       logical :: ifbad        ! flag for bad data
 
-      real(8)              :: p1, dd, dmax
+      real(8)              :: p1, p2, dd, dmax
       real(8)              :: pmax1, pave1
+      real(8)              :: pmax2, pave2
       real(8)              :: rms
       real(8), allocatable :: power1(:,:,:,:)
       real(8), allocatable :: power2(:,:,:,:)
@@ -381,33 +384,46 @@
       rms=0.0d0
       dmax=0.0d0
       np=0
-      kmax(:)=0     ! location of max difference
-      lmax(:)=0     ! location of max power
+      kmax1(:)=0    ! location of max difference file 1
+      kmax2(:)=0    ! location of max difference file 2
+      lmax1(:)=0    ! location of max power file 1
+      lmax2(:)=0    ! location of max power file 2
       pmax1=0.0d0   ! max power of distribution 1
+      pmax2=0.0d0   ! max power of distribution 2
       pave1=0.0d0   ! ave power of distribution 1
+      pave2=0.0d0   ! ave power of distribution 2
       do ip=1, npin
         do jp=1, npin
           do k=1, kd
             do na=1, nassm
               p1=power1(na,k,jp,ip)
+              p2=power2(na,k,jp,ip)
               if (p1.gt.0.0d0) then
                 np=np+1
                 pave1=pave1+p1
+                pave2=pave2+p2
                 if (p1.gt.pmax1) then
                   pmax1=p1
-                  lmax(1)=ip
-                  lmax(2)=jp
-                  lmax(3)=k
-                  lmax(4)=na
+                  lmax1(1)=ip
+                  lmax1(2)=jp
+                  lmax1(3)=k
+                  lmax1(4)=na
                 endif
-                dd=abs(power2(na,k,jp,ip)-p1)
+                if (p2.gt.pmax2) then
+                  pmax2=p2
+                  lmax2(1)=ip
+                  lmax2(2)=jp
+                  lmax2(3)=k
+                  lmax2(4)=na
+                endif
+                dd=abs(p2-p1)
                 rms=rms+dd*dd
                 if (dd.gt.dmax) then
                   dmax=dd
-                  kmax(1)=ip
-                  kmax(2)=jp
-                  kmax(3)=k
-                  kmax(4)=na
+                  kmax1(1)=ip
+                  kmax1(2)=jp
+                  kmax1(3)=k
+                  kmax1(4)=na
                 endif
               endif
             enddo
@@ -418,6 +434,7 @@
       if (np.gt.0) then
         rms=sqrt(rms/dble(np))
         pave1=pave1/dble(np)
+        pave2=pave2/dble(np)
       endif
 
       xmax=dmax*100.0d0
@@ -425,17 +442,21 @@
       deallocate (power2)
       deallocate (power1)
 
-      write (*,'(/1x,a)') 'Pin Power comparisons (averages do not include volume weight)'
+      write (*,'(/1x,a)') 'Pin Power comparisons'
       write (*,120) np
-      write (*,126) pmax1, lmax(:)
-      write (*,125) pave1
-      write (*,131) dmax*100.0d0, kmax(:)
+      write (*,126) 1, pmax1, lmax1(:)
+      write (*,126) 2, pmax2, lmax2(:)
+      write (*,125) 1, pave1
+      write (*,125) 2, pave2
+      write (*,131) dmax*100.0d0, kmax1(:)
       write (*,130) rms*100.0d0
- 120  format (3x,'num values',5x,i10)
- 125  format (3x,'ave power1     ', f10.4)
- 126  format (3x,'max power1     ', f10.4,'   at (ip,jp,k,na) ', 4i4)
+      write (*,138) (pmax2-pmax1)*100.0d0
+ 120  format (3x,'number values',2x,i10)
+ 125  format (3x,'ave power',i1,5x, f10.4,'   (does not include volume weighting)')
+ 126  format (3x,'max power',i1,5x, f10.4,'   at (ip,jp,k,na) ', 4i4)
  130  format (3x,'rms difference ', f10.4,' %')
  131  format (3x,'max difference ', f10.4,' % at (ip,jp,k,na) ', 4i4)
+ 138  format (3x,'difference in max pin ', f10.4,' %')
 
       return
       end subroutine pin_compare
