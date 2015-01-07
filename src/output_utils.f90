@@ -116,7 +116,45 @@
 
 !=======================================================================
 !
-!  Subroutine to print pin powers by assembly using pretty output
+!  Subroutine to print 3D exit values by assembly using pretty output
+!  (useful for looking at exit temperatures/densities)
+!
+!=======================================================================
+      subroutine print_exit_map(title, npin, kd, nassm, power)
+      implicit none
+      integer, intent(in) :: npin, kd, nassm
+      real(8), intent(in) :: power(npin,npin,kd,nassm)
+      character(len=*), intent(in) :: title
+
+!--- local
+
+      integer            :: i, j, ia
+      integer            :: k
+      real(8), allocatable :: ptemp(:,:,:)
+
+!--- create 2D map and pass to edit routine
+
+      allocate (ptemp(npin,npin,nassm))
+      do ia=1, nassm
+        do j=1, npin
+          do i=1, npin
+            ptemp(i,j,ia)=power(i,j,kd,ia)
+          enddo
+        enddo
+      enddo
+     
+      write (*,*) 
+      write (*,*) 'Exit values level ', kd
+      k=1  ! for 2D map
+      call print_pin_map(title, npin, k, nassm, ptemp)
+
+      deallocate (ptemp)
+
+      return
+      end subroutine print_exit_map
+!=======================================================================
+!
+!  Subroutine to print 3D pin powers by assembly using pretty output
 !
 !=======================================================================
       subroutine print_pin_map(title, npin, kd, nassm, power)
@@ -150,13 +188,19 @@
         enddo
       enddo
 
-      write (*,'(/,1x,a)') trim(title)
+!!    write (*,'(/,1x,a)') trim(title)
 !!    write (*,'(a,2f12.4)') ' Max ', zmax
 
 !--- write maps
 
+
       fmt='(f7.4)'
-      if (zmax.gt.100.0d0) fmt='(f7.1)'
+      if (zmax.gt.  10.0d0) fmt='(f7.3)'
+      if (zmax.gt. 100.0d0) fmt='(f7.2)'
+      if (zmax.gt.1000.0d0) fmt='(f7.1)'
+
+!d    write (*,*) 'debug: zmax = ', zmax
+!d    write (*,*) 'debug: fmt  = ', fmt 
 
       if (npin.gt.20) then
         write (*,*) '**** too many pins across to print nice maps ****'
@@ -172,9 +216,7 @@
 !!        write (*,'(1x,a,i3,2a)') 'Assembly ', ia,'    type ', trim(assmmap(nassm))   ! no types to mpact
           write (*,'(1x,a,i3,2a)') 'Assembly ', ia
           if (kd.gt.1) then
-             write (*,'(  1x,a,i3)') 'Level    ', klev
-          else
-             write (*,*) '2D collapse'
+            write (*,'(  1x,a,i3)') 'Level    ', klev
           endif
           pave=0.0
           kpin=0

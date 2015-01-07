@@ -94,6 +94,7 @@
       logical  :: if2d   =.false.           ! turn on 2D edits
       logical  :: if1d   =.false.           ! turn on 1D edits
       logical  :: iftfuel=.false.           ! turn on special fuel temp edits
+      logical  :: ifexit =.false.           ! turn on channel exit edits
 
 !  initialize
 
@@ -120,7 +121,7 @@
 
       iargs = command_argument_count()
       if (iargs.lt.1) then
-        write (*,*) 'usage:  ctfread.exe [hdf5_file] {1D/2D/3D/tfuel}'
+        write (*,*) 'usage:  ctfread.exe [hdf5_file] {1D/2D/3D/tfuel/exit}'
         stop
       endif
 
@@ -136,6 +137,8 @@
           if1d=.true.
         elseif (carg.eq.'tfuel') then
           iftfuel=.true.
+        elseif (carg.eq.'exit') then
+          ifexit=.true.
         else
           filename=carg
         endif
@@ -144,6 +147,7 @@
       if (.not.if1d)  write (*,*) 'no 1D edits requested on command line'
       if (.not.if2d)  write (*,*) 'no 2D edits requested on command line'
       if (.not.if3d)  write (*,*) 'no 3D edits requested on command line'
+      if (.not.ifexit)  write (*,*) 'no exit edits requested on command line'
 
 !--- initialize HDF fortran interface
 
@@ -382,20 +386,7 @@
 !    Edits
 !------------------
 
-!--- print 3D maps
-
-        if (if3d) then
-          call print_pin_map(label_power,  npin,  kd, nassm, power)
-          call print_pin_map(label_tfuel,  npin,  kd, nassm, tfuel)
-          call print_pin_map(label_tcool,  npin,  kd, nassm, tcool)
-          call print_pin_map(label_chcool, nchan, kd, nassm, chtemp)
-          if (ifsteam) then
-            call print_pin_map(label_tsurf(1), npin, kd, nassm, tsurf1)
-            call print_pin_map(label_tsurf(2), npin, kd, nassm, tsurf2)
-            call print_pin_map(label_steam(1), npin, kd, nassm, steam1)
-            call print_pin_map(label_steam(2), npin, kd, nassm, steam2)
-          endif
-        endif
+!--- print overall statistics stats
 
         call stat3d(label_power,  npin,  kd, nassm, axial, power)        
         call stat3d(label_tfuel,  npin,  kd, nassm, axial, tfuel)
@@ -412,9 +403,37 @@
         call stat3d(label_chcool, nchan, kd, nassm, axial, chtemp)
         write (*,*) '(coolant averages do not include flow area weighting)'
 
+!--- print 3D maps
+
+        if (if3d) then
+          write (*,*)
+          write (*,*) '===== 3D Maps ====='
+          call print_pin_map(label_power,  npin,  kd, nassm, power)
+          call print_pin_map(label_tfuel,  npin,  kd, nassm, tfuel)
+          call print_pin_map(label_tcool,  npin,  kd, nassm, tcool)
+          call print_pin_map(label_chcool, nchan, kd, nassm, chtemp)
+          if (ifsteam) then
+            call print_pin_map(label_tsurf(1), npin, kd, nassm, tsurf1)
+            call print_pin_map(label_tsurf(2), npin, kd, nassm, tsurf2)
+            call print_pin_map(label_steam(1), npin, kd, nassm, steam1)
+            call print_pin_map(label_steam(2), npin, kd, nassm, steam2)
+          endif
+        endif
+
 !--- 2D edits
 
    ! **** To-Do
+
+!--- print exit maps
+
+        if (ifexit) then
+          write (*,*)
+          write (*,*) '===== Exit Maps ====='
+          call print_exit_map(label_power,  npin,  kd, nassm, power)
+          call print_exit_map(label_tcool,  npin,  kd, nassm, tcool)
+          call print_exit_map(label_chcool, nchan, kd, nassm, chtemp)
+        endif
+
 
 !--- 1D edits
 
