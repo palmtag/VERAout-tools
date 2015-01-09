@@ -12,11 +12,12 @@
 !  Subroutine to print 3D statistics
 !
 !=======================================================================
-      subroutine stat3d (title, npin, kd, nassm, axial, power)
+      subroutine stat3d (title, npin, kd, nassm, axial, power, pmax)
       implicit none
       integer, intent(in) :: npin, kd, nassm
       real(8), intent(in) :: axial(kd)
       real(8), intent(in) :: power(npin,npin,kd,nassm)
+      real(8), intent(out):: pmax
       character(len=*), intent(in) :: title
 
 !--- local
@@ -30,6 +31,8 @@
       integer  :: k3max(4)        ! 3D max locations
 
 !--- calculate 3D statistics
+
+      pmax=0.0d0   ! output maximum
 
       kpin=0
       zave=0.0d0
@@ -92,6 +95,7 @@
   190 format (2x, a,1p,e14.5,'  at (i,j,k,na)', 0p, 4i4)
   192 format (2x, a,1p,e14.5)
 
+      pmax=c3max   ! return max value
 
 !--- check for very small values
 
@@ -128,27 +132,17 @@
 
 !--- local
 
-      integer            :: i, j, ia
-      integer            :: k
-      real(8), allocatable :: ptemp(:,:,:)
+      integer            :: ia, klev
 
-!--- create 2D map and pass to edit routine
+!--- print exit values (level kd)
 
-      allocate (ptemp(npin,npin,nassm))
-      do ia=1, nassm
-        do j=1, npin
-          do i=1, npin
-            ptemp(i,j,ia)=power(i,j,kd,ia)
-          enddo
-        enddo
-      enddo
-     
-      write (*,*) 
-      write (*,*) 'Exit values level ', kd
-      k=1  ! for 2D map
-      call print_pin_map(title, npin, k, nassm, ptemp)
+      klev=kd
 
-      deallocate (ptemp)
+      do ia=1, nassm        ! loop over assemblies
+        write (*,*)
+        write (*,*) 'Exit values level ', kd
+        call print_single_pin_map(title, npin, kd, nassm, ia, klev, power)
+      enddo      ! ia
 
       return
       end subroutine print_exit_map
@@ -157,7 +151,7 @@
 !  Subroutine to print 3D pin powers by assembly using pretty output
 !
 !=======================================================================
-      subroutine print_pin_map(title, npin, kd, nassm, power)
+      subroutine print_3D_pin_map(title, npin, kd, nassm, power)
       implicit none
       integer, intent(in) :: npin, kd, nassm
       real(8), intent(in) :: power(npin,npin,kd,nassm)
@@ -165,34 +159,54 @@
 
 !--- local
 
+      integer            :: ia, klev
+
+!--- start
+
+      do ia=1, nassm        ! loop over assemblies
+        do klev=kd, 1, -1   ! loop over axial levels
+          call print_single_pin_map(title, npin, kd, nassm, ia, klev, power)
+        enddo    ! klev
+      enddo      ! ia
+
+      return
+      end subroutine print_3D_pin_map
+!=======================================================================
+!
+!  Subroutine to print a single pin power map of an assembly using pretty output
+!
+!  Pass in entire 3D array (nassm,kd), but only print one assembly (ia,klev)
+!
+!=======================================================================
+      subroutine print_single_pin_map(title, npin, kd, nassm, ia, klev, power)
+      implicit none
+      integer, intent(in) :: npin, kd, nassm, klev, ia
+      real(8), intent(in) :: power(npin,npin,kd,nassm)
+      character(len=*), intent(in) :: title
+
+!--- local
+
       integer            :: i, j, m
-      integer            :: ia, klev, kpin
+      integer            :: kpin
       real(8)            :: pp, pave, pmin, pmax
-      real(8)            :: zmax   ! 3D max
+      real(8)            :: zmax
       character(len=150) :: line
       character(len=8)   :: fmt
 
-!--- calculate 3D statistics to set the format correctly
-!---  **** average does not use axial weighting
+      if (npin.gt.20) then
+        write (*,*) '**** too many pins across to print nice maps ****'
+        return
+      endif
+
+!--- calculate maximum and set the format correctly
 
       zmax=0.0d0
-
-      do ia=1, nassm
-        do klev=1, kd
-          do j=1, npin
-            do i=1, npin
-              pp=power(i,j,klev,ia)
-              zmax=max(zmax,pp)
-            enddo
-          enddo
+      do j=1, npin
+        do i=1, npin
+          pp=power(i,j,klev,ia)
+          zmax=max(zmax,pp)
         enddo
       enddo
-
-!!    write (*,'(/,1x,a)') trim(title)
-!!    write (*,'(a,2f12.4)') ' Max ', zmax
-
-!--- write maps
-
 
       fmt='(f7.4)'
       if (zmax.gt.  10.0d0) fmt='(f7.3)'
@@ -200,58 +214,52 @@
       if (zmax.gt.1000.0d0) fmt='(f7.1)'
 
 !d    write (*,*) 'debug: zmax = ', zmax
-!d    write (*,*) 'debug: fmt  = ', fmt 
+!d    write (*,*) 'debug: fmt  = ', fmt
 
-      if (npin.gt.20) then
-        write (*,*) '**** too many pins across to print nice maps ****'
-        return
+!--- write map
+
+      write (*,'(/,1x,a)') trim(title)
+!!    write (*,'(1x,a,i3,2a)') 'Assembly ', ia,'    type ', trim(assmmap(nassm))   ! no types to mpact
+      if (kd.eq.1) then
+        write (*,30)  ia
+      else
+        write (*,35)  ia, klev
       endif
-
-!**** To-do: read labels from input and use in edits
-
-
-      do ia=1, nassm        ! loop over assemblies
-        do klev=kd, 1, -1   ! loop over axial levels
-          write (*,'(/,1x,a)') trim(title)
-!!        write (*,'(1x,a,i3,2a)') 'Assembly ', ia,'    type ', trim(assmmap(nassm))   ! no types to mpact
-          write (*,'(1x,a,i3,2a)') 'Assembly ', ia
-          if (kd.gt.1) then
-            write (*,'(  1x,a,i3)') 'Level    ', klev
+      pave=0.0
+      kpin=0
+      pmin=2.0d20
+      pmax=0.0d0
+      do i=1, npin
+        line=' '
+        m=0
+        do j=1, npin
+          pp=power(i,j,klev,ia)
+          if (pp.eq.0.0) then
+            line(m+1:m+7)='   --- '
+          else
+            write (line(m+1:m+7),fmt) pp
+            pave=pave+pp
+            kpin=kpin+1
+            pmin=min(pmin,pp)
+            pmax=max(pmax,pp)
           endif
-          pave=0.0
-          kpin=0
-          pmin=2.0d20
-          pmax=0.0d0
-          do i=1, npin
-            line=' '
-            m=0
-            do j=1, npin
-              pp=power(i,j,klev,ia)
-              if (pp.eq.0.0) then
-                line(m+1:m+7)='   --- '
-              else
-                write (line(m+1:m+7),fmt) pp
-                pave=pave+pp
-                kpin=kpin+1
-                pmin=min(pmin,pp)
-                pmax=max(pmax,pp)
-              endif
-              m=m+7
-            enddo
-            write (*,'(1x,a)') line(1:m)
-          enddo
-          if (kpin.gt.0) pave=pave/real(kpin)
-          if (pmin.gt.1.0d20) pmin=0.0d0   ! protect if no data
-          write (*,210) kpin, pave, pmin, pmax
-!d        write (*,*) 'debug average = ', pave
+          m=m+7
+        enddo
+        write (*,'(1x,a)') line(1:m)
+      enddo
+      if (kpin.gt.0) pave=pave/real(kpin)
+      if (pmin.gt.1.0d20) pmin=0.0d0   ! protect if no data
+      write (*,210) kpin, pave, pmin, pmax
+!d    write (*,*) 'debug average = ', pave
 
-        enddo    ! klev
-      enddo      ! ia
 ! 210 format (5x,'number of hot pins',i4,'    average=',f7.4,'   min=', f7.4,'   max=', f7.4)
   210 format (5x,'number of hot pins',i4,'    average=',f12.4,'   min=', f12.4,'   max=', f12.4)
 
+   30 format (1x,'Assembly ',i3,2a)
+   35 format (1x,'Assembly ',i3,'  Level',i3)
+
       return
-      end subroutine print_pin_map
+      end subroutine print_single_pin_map
 !=======================================================================
 !
 !  Subroutine to print axial edits

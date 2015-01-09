@@ -51,11 +51,12 @@
       integer  :: nassm                     ! number of assemblies in pin maps
       integer  :: npin                      ! pin data
 
+      real(8)  :: xtemp                     ! temp value
       real(8)  :: xkeff                     ! eigenvalue
-      real(8)  :: xexpo                     ! exposure   
+      real(8)  :: xexpo                     ! exposure
       real(8)  :: pinmax                    ! peak 3D pin
       real(8)  :: rated_power               ! rated flow
-      real(8)  :: rated_flow                ! rated power 
+      real(8)  :: rated_flow                ! rated power
 
       real(8), allocatable :: axial(:)      ! axial elevations
       real(8), allocatable :: pin2 (:,:,:)  ! 2d collapsed pin powers
@@ -262,7 +263,7 @@
 
       do j=1, naxial
         axial(j)=axial(j+1)-axial(j)   ! convert to deltas
-      enddo 
+      enddo
       axial(naxial+1)=0.0d0
 
       if (ifdebug) then
@@ -419,11 +420,11 @@
 
 !--- print maps
 
-        call stat3d('pin_powers', npin,  kd, nassm, axial, power)
+        call stat3d('pin_powers', npin,  kd, nassm, axial, power, xtemp)
 
-        if (if3d) call print_pin_map('power_3d', npin, kd, nassm, power)
+        if (if3d) call print_3D_pin_map('3D pin_powers', npin, kd, nassm, power)
 
-        if (if2d) call print_pin_map('power_2d', npin, 1,  nassm, pin2)
+        if (if2d) call print_3D_pin_map('2D pin_powers', npin, 1,  nassm, pin2)
 
         if (if2da) call print2d_assm_map(npin, nassm, pin2, icore, jcore, mapcore, xlabel, ylabel)
 

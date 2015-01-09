@@ -41,6 +41,7 @@
       integer            :: nstate=0        ! statepoint number
 
       real(8)            :: zsum
+      real(8)            :: xtemp
 
       logical            :: ifxst           ! flag if file exists
       logical            :: ifsteam         ! flag if steaming rate data is present
@@ -377,21 +378,18 @@
 
         call pincell_coolant(nchan, npin, kd, nassm, charea, chtemp, tcool)
 
-
 !  convert to max and average steam rates  (1=max, 2=average)
 
         if (ifsteam) then    ! edit before transformation
-          call stat3d(label_tsurf(1), npin,  kd, nassm, axial, tsurf1)
-          call stat3d(label_tsurf(2), npin,  kd, nassm, axial, tsurf2)
-          call stat3d(label_tsurf(3), npin,  kd, nassm, axial, tsurf3)
-          call stat3d(label_tsurf(4), npin,  kd, nassm, axial, tsurf4)
-          call stat3d(label_steam(1), npin,  kd, nassm, axial, steam1)
-          call stat3d(label_steam(2), npin,  kd, nassm, axial, steam2)
-          call stat3d(label_steam(3), npin,  kd, nassm, axial, steam3)
-          call stat3d(label_steam(4), npin,  kd, nassm, axial, steam4)
-        endif
+          call stat3d(label_tsurf(1), npin,  kd, nassm, axial, tsurf1, xtemp)
+          call stat3d(label_tsurf(2), npin,  kd, nassm, axial, tsurf2, xtemp)
+          call stat3d(label_tsurf(3), npin,  kd, nassm, axial, tsurf3, xtemp)
+          call stat3d(label_tsurf(4), npin,  kd, nassm, axial, tsurf4, xtemp)
+          call stat3d(label_steam(1), npin,  kd, nassm, axial, steam1, xtemp)
+          call stat3d(label_steam(2), npin,  kd, nassm, axial, steam2, xtemp)
+          call stat3d(label_steam(3), npin,  kd, nassm, axial, steam3, xtemp)
+          call stat3d(label_steam(4), npin,  kd, nassm, axial, steam4, xtemp)
 
-        if (ifsteam) then
           call surfmaxave(nassm, npin, kd, steam1, steam2, steam3, steam4)
           call surfmaxave(nassm, npin, kd, tsurf1, tsurf2, tsurf3, tsurf4)
         endif
@@ -402,19 +400,19 @@
 
 !--- print overall statistics stats
 
-        call stat3d(label_power,  npin,  kd, nassm, axial, power)
-        call stat3d(label_tfuel,  npin,  kd, nassm, axial, tfuel)
+        call stat3d(label_power,  npin,  kd, nassm, axial, power, xtemp)
+        call stat3d(label_tfuel,  npin,  kd, nassm, axial, tfuel, xtemp)
         if (ifsteam) then
-          call stat3d(label_tsurf_max,  npin,  kd, nassm, axial, tsurf1)
-          call stat3d(label_tsurf_ave,  npin,  kd, nassm, axial, tsurf2)
-          call stat3d(label_steam_max,  npin,  kd, nassm, axial, steam1)
-          call stat3d(label_steam_ave,  npin,  kd, nassm, axial, steam2)
+          call stat3d(label_tsurf_max,  npin,  kd, nassm, axial, tsurf1, xtemp)
+          call stat3d(label_tsurf_ave,  npin,  kd, nassm, axial, tsurf2, xtemp)
+          call stat3d(label_steam_max,  npin,  kd, nassm, axial, steam1, xtemp)
+          call stat3d(label_steam_ave,  npin,  kd, nassm, axial, steam2, xtemp)
         endif
 
-        call stat3d(label_tcool, npin, kd, nassm, axial, tcool)
+        call stat3d(label_tcool, npin, kd, nassm, axial, tcool, xtemp)
         write (*,*) '(coolant averages do not include flow area weighting)'
 
-        call stat3d(label_chcool, nchan, kd, nassm, axial, chtemp)
+        call stat3d(label_chcool, nchan, kd, nassm, axial, chtemp, xtemp)
         write (*,*) '(coolant averages do not include flow area weighting)'
 
 !--- print 3D maps
@@ -422,15 +420,15 @@
         if (if3d) then
           write (*,*)
           write (*,*) '===== 3D Maps ====='
-          call print_pin_map(label_power,  npin,  kd, nassm, power)
-          call print_pin_map(label_tfuel,  npin,  kd, nassm, tfuel)
-          call print_pin_map(label_tcool,  npin,  kd, nassm, tcool)
-          call print_pin_map(label_chcool, nchan, kd, nassm, chtemp)
+          call print_3D_pin_map(label_power,  npin,  kd, nassm, power)
+          call print_3D_pin_map(label_tfuel,  npin,  kd, nassm, tfuel)
+          call print_3D_pin_map(label_tcool,  npin,  kd, nassm, tcool)
+          call print_3D_pin_map(label_chcool, nchan, kd, nassm, chtemp)
           if (ifsteam) then
-            call print_pin_map(label_tsurf_max, npin, kd, nassm, tsurf1)
-            call print_pin_map(label_tsurf_ave, npin, kd, nassm, tsurf2)
-            call print_pin_map(label_steam_max, npin, kd, nassm, steam1)
-            call print_pin_map(label_steam_ave, npin, kd, nassm, steam2)
+            call print_3D_pin_map(label_tsurf_max, npin, kd, nassm, tsurf1)
+            call print_3D_pin_map(label_tsurf_ave, npin, kd, nassm, tsurf2)
+            call print_3D_pin_map(label_steam_max, npin, kd, nassm, steam1)
+            call print_3D_pin_map(label_steam_ave, npin, kd, nassm, steam2)
           endif
         endif
 
@@ -447,7 +445,6 @@
           call print_exit_map(label_tcool,  npin,  kd, nassm, tcool)
           call print_exit_map(label_chcool, nchan, kd, nassm, chtemp)
         endif
-
 
 !--- 1D edits
 
@@ -497,6 +494,8 @@
       call h5fclose_f(file_id, ierror)
 
 !--- print summary here (?)
+
+!   TO-DO:  save max values from each statepoint and print here
 
 !--- deallocate memory
 
