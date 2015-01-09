@@ -3,7 +3,7 @@
 !
 !  Program to read CTF HDF output file and print summary
 !
-!  Copyright (c) 2014 Core Physics, Inc.
+!  Copyright (c) 2014-2015 Core Physics, Inc.
 !
 !  Distributed under the MIT license.
 !  See the LICENSE file in the main directory for details.
@@ -11,23 +11,18 @@
 !=======================================================================
 !
 !  2014/05/16 - original version based on mpactread
-!
 !  2014/06/26 - updated code based on new CTF HDF format
-!
 !  2014/07/18 - updated power edits to use new W/cm^3 units
 !               (this will likely change again)
-!
 !  2014/09/01 - change HDF open to read only
-!
 !  2014/08/25 - updated power edits to use new W/cm units (hopefully final time units change)
-!
 !  2014/09/22 - Update CTF data structure on HDF file
-!
 !  2014/10/10 - Added steaming rate and rod surface temperature arrays
+!  2015/01/09 - Add multiple statepoint support
 !
 !  There are still some issues that need to be worked out:
 !    * There are some cases that have a very small power in non-fuel regions
-!      The user needs to examine the output carefully to make sure the 
+!      The user needs to examine the output carefully to make sure the
 !      averages are correct.
 !
 !-----------------------------------------------------------------------
@@ -60,6 +55,10 @@
       character(len=30)  :: label_chcool    ! channel coolant temperature label - for both input and output
       character(len=30)  :: label_tsurf(4)  ! surface temp  label - for both input and output
       character(len=40)  :: label_steam(4)  ! steaming rate label - for both input and output
+      character(len=30)  :: label_tsurf_max ! max surface temp label  - output
+      character(len=30)  :: label_tsurf_ave ! ave surface temp label  - output
+      character(len=40)  :: label_steam_max ! max steaming rate label - output
+      character(len=40)  :: label_steam_ave ! max steaming rate label - output
 
       integer(hid_t)     :: file_id         ! HDF file ID number
 
@@ -114,6 +113,11 @@
       label_steam(2)='Steaming_Rate_Segment2 [kg_per_s]'
       label_steam(3)='Steaming_Rate_Segment3 [kg_per_s]'
       label_steam(4)='Steaming_Rate_Segment4 [kg_per_s]'
+
+      label_tsurf_max='Rod_Surface_MaxSurf [C]'
+      label_tsurf_ave='Rod_Surface_AveSurf [C]'
+      label_steam_max='Steaming_Rate_MaxSurf [kg_per_s]'
+      label_steam_ave='Steaming_Rate_AveSurf [kg_per_s]'
 
 !----------------------------------------------------------------------
 !  Read in arguments from command line
@@ -221,7 +225,7 @@
         write (*,*) ' nassm = ', nassm
         write (*,*) ' npin  = ', npin
         write (*,*) ' nchan = ', nchan, idim(3)
-        write (*,*) ' kd    = ', kd   
+        write (*,*) ' kd    = ', kd
       endif
 
       if (nassm.eq.0) stop 'invalid number of assemblies in pin data'
@@ -230,6 +234,10 @@
 
       allocate (charea(nassm,nchan,nchan))    ! channel areas
       call hdf5_read_double(file_id, dataset, nassm, nchan, nchan, charea)
+
+!  check channel areas
+
+        call check_channel(nchan, kd, nassm, charea, axial)
 
 !--- allocate other arrays
 
@@ -252,32 +260,41 @@
 !  Read STATE group - only one statepoint supported at this time
 !----------------------------------------------------
 
-      nstate=1
-      write (state_name,'(a,i4.4,a)') '/STATE_', nstate, '/'
+  40 format (/,'--------------------------',&
+             /,'  Reading statepoint ', i0, &
+             /,'--------------------------')
 
-      if (ifdebug) write (*,*) 'debug: state= ', state_name
+      nstate=0
+      do
+        nstate=nstate+1
+        write (state_name,'(a,i4.4,a)') '/STATE_', nstate, '/'
+        if (ifdebug) write (*,*) 'debug: state= ', state_name
 
 !--- check if statepoint exists or data is in root group
 
-      call h5lexists_f(file_id, state_name, ifxst, ierror)
-      if (.not.ifxst) then
-        write (*,'(2a)') 'ERROR: cannot find statepoint: ', trim(state_name)
-        stop 'STATE group does not exist'
-      endif
+        call h5lexists_f(file_id, state_name, ifxst, ierror)
+        if (.not.ifxst) then
+          if (ifdebug) write (*,*) 'dataset not found - exiting'
+          if (nstate.eq.1) then   ! fatal error for first state only
+            stop 'ERROR: First statepoint not found on file'
+          endif
+          goto 800
+        endif
+
+        write (*,40) nstate
 
 !--- check if steaming data exists
 
-      dataset=trim(state_name)//label_steam(1)
-      call h5lexists_f(file_id, dataset, ifsteam, ierror)
-      if (.not.ifsteam) then
-        write (*,'(2a)') 'WARNING: Steaming data does not exist on this file'
-      endif
-
+        dataset=trim(state_name)//label_steam(1)
+        call h5lexists_f(file_id, dataset, ifsteam, ierror)
+        if (.not.ifsteam) then
+          write (*,'(2a)') '>>', trim(dataset)
+          write (*,'(2a)') 'WARNING: Steaming data does not exist for this file'
+        endif
 
 !--------------------------------------------------------------------------------
 ! Read Statepoint Data
 !--------------------------------------------------------------------------------
-
 
 !--- read 4D data into temporary array then change order
 
@@ -356,9 +373,10 @@
 
 !--- check data
 
-!  check channel areas
+!  calculate pincell-based coolant temperatures
 
-        call check_channel(nchan, npin, kd, nassm, charea, axial, chtemp, tcool)
+        call pincell_coolant(nchan, npin, kd, nassm, charea, chtemp, tcool)
+
 
 !  convert to max and average steam rates  (1=max, 2=average)
 
@@ -376,10 +394,6 @@
         if (ifsteam) then
           call surfmaxave(nassm, npin, kd, steam1, steam2, steam3, steam4)
           call surfmaxave(nassm, npin, kd, tsurf1, tsurf2, tsurf3, tsurf4)
-          label_tsurf(1)='Rod_Surface_MaxSurf [C]'
-          label_tsurf(2)='Rod_Surface_AveSurf [C]'
-          label_steam(1)='Steaming_Rate_MaxSurf [kg_per_s]'
-          label_steam(2)='Steaming_Rate_AveSurf [kg_per_s]'
         endif
 
 !------------------
@@ -388,13 +402,13 @@
 
 !--- print overall statistics stats
 
-        call stat3d(label_power,  npin,  kd, nassm, axial, power)        
+        call stat3d(label_power,  npin,  kd, nassm, axial, power)
         call stat3d(label_tfuel,  npin,  kd, nassm, axial, tfuel)
         if (ifsteam) then
-          call stat3d(label_tsurf(1),  npin,  kd, nassm, axial, tsurf1)
-          call stat3d(label_tsurf(2),  npin,  kd, nassm, axial, tsurf2)
-          call stat3d(label_steam(1),  npin,  kd, nassm, axial, steam1)
-          call stat3d(label_steam(2),  npin,  kd, nassm, axial, steam2)
+          call stat3d(label_tsurf_max,  npin,  kd, nassm, axial, tsurf1)
+          call stat3d(label_tsurf_ave,  npin,  kd, nassm, axial, tsurf2)
+          call stat3d(label_steam_max,  npin,  kd, nassm, axial, steam1)
+          call stat3d(label_steam_ave,  npin,  kd, nassm, axial, steam2)
         endif
 
         call stat3d(label_tcool, npin, kd, nassm, axial, tcool)
@@ -413,10 +427,10 @@
           call print_pin_map(label_tcool,  npin,  kd, nassm, tcool)
           call print_pin_map(label_chcool, nchan, kd, nassm, chtemp)
           if (ifsteam) then
-            call print_pin_map(label_tsurf(1), npin, kd, nassm, tsurf1)
-            call print_pin_map(label_tsurf(2), npin, kd, nassm, tsurf2)
-            call print_pin_map(label_steam(1), npin, kd, nassm, steam1)
-            call print_pin_map(label_steam(2), npin, kd, nassm, steam2)
+            call print_pin_map(label_tsurf_max, npin, kd, nassm, tsurf1)
+            call print_pin_map(label_tsurf_ave, npin, kd, nassm, tsurf2)
+            call print_pin_map(label_steam_max, npin, kd, nassm, steam1)
+            call print_pin_map(label_steam_ave, npin, kd, nassm, steam2)
           endif
         endif
 
@@ -443,10 +457,10 @@
            call print1d(label_tcool, npin, kd, nassm, tcool, axial)
            write (*,*) '(coolant averages do not include flow area weighting)'
            if (ifsteam) then
-             call print1d(label_tsurf(1), npin, kd, nassm, tsurf1, axial)
-             call print1d(label_tsurf(2), npin, kd, nassm, tsurf2, axial)
-             call print1d(label_steam(1), npin, kd, nassm, steam1, axial)
-             call print1d(label_steam(2), npin, kd, nassm, steam2, axial)
+             call print1d(label_tsurf_max, npin, kd, nassm, tsurf1, axial)
+             call print1d(label_tsurf_ave, npin, kd, nassm, tsurf2, axial)
+             call print1d(label_steam_max, npin, kd, nassm, steam1, axial)
+             call print1d(label_steam_ave, npin, kd, nassm, steam2, axial)
            endif
         endif
 
@@ -474,11 +488,15 @@
 !--------------------------------------------------------------------------------
 !   Finish Statepoints
 !--------------------------------------------------------------------------------
-!x800 continue
+
+      enddo     ! end of statepoint loop
+  800 continue
 
 !--- close hdf file
 
       call h5fclose_f(file_id, ierror)
+
+!--- print summary here (?)
 
 !--- deallocate memory
 
@@ -734,19 +752,14 @@
       end subroutine subtract_cool
 
 !=======================================================================
-      subroutine check_channel(nchan, npin, kd, nassm, charea, axial, chtemp, tcool)
+      subroutine check_channel(nchan, kd, nassm, charea, axial)
       implicit none
-      integer, intent(in) :: nchan, npin, kd, nassm
+      integer, intent(in) :: nchan, kd, nassm
       real(8), intent(in) :: charea(nassm,nchan,nchan)
       real(8), intent(in) :: axial(kd)
-      real(8), intent(in) :: chtemp (nchan,nchan,kd, nassm)  ! coolant temps per channel
-      real(8), intent(out):: tcool(npin, npin, kd, nassm)  ! coolant temps per pincell
-
-      real(8) :: parea(npin,npin,nassm)   ! automatic
 
       integer :: i, j, na, k
       real(8) :: sum
-      real(8) :: w11, w12, w21, w22, ww, wsum
 
       sum=0.0d0
       do k=1, kd
@@ -769,7 +782,7 @@
           do i=1, nchan
             sum=sum+charea(na,i,j)
           enddo
-        enddo 
+        enddo
         write (*,80) 'Total Channel flow area ', sum
 
       enddo
@@ -784,12 +797,33 @@
 !!      write (*,80) 'flow should be approximately', apitch**2 * nassm * 0.5d0,'cm^2'
 !!    endif
 
+      write (*,*)
+
+      return
+      end subroutine check_channel
+
+!=======================================================================
+!
+!  Create array of pincell-based coolant temperatures
+!
+      subroutine pincell_coolant(nchan, npin, kd, nassm, charea, chtemp, tcool)
+      implicit none
+      integer, intent(in) :: nchan, npin, kd, nassm
+      real(8), intent(in) :: charea(nassm,nchan,nchan)
+      real(8), intent(in) :: chtemp (nchan,nchan,kd, nassm)  ! coolant temps per channel
+      real(8), intent(out):: tcool(npin, npin, kd, nassm)  ! coolant temps per pincell
+
+      real(8) :: parea(npin,npin,nassm)   ! automatic
+
+      integer :: i, j, na, k
+      real(8) :: sum
+      real(8) :: w11, w12, w21, w22, ww, wsum
 
 !--- calculate average channel temp per pincell  (needed for fuel temperature fit)
 
       sum=0.0d0
       wsum=0.0d0
- 
+
       do j=1, npin
         do i=1, npin
           do na=1, nassm
@@ -842,21 +876,22 @@
             enddo
           enddo
         enddo
-      enddo 
+      enddo
 
       write (*,*) 'Converting to pincell flow areas'
       write (*,80) 'Total Pincell flow area ', sum
+   80 format (1x,a,' =',f10.4,' [cm^2]')
 
 !d    do na=1, nassm
 !d      write (*,*)
 !d      write (*,*) 'Pincell Flow Areas [cm^2]   - Assembly ', na
-!d      do j=1, npin 
+!d      do j=1, npin
 !d        write (*,'(20f7.4)') (parea(i,j,na), i=1, npin)
 !d      enddo
 !d    enddo
 
       return
-      end subroutine check_channel
+      end subroutine pincell_coolant
 !=======================================================================
 !
 !   Subroutine to convert 4 surface arrays into an array of max and average values
