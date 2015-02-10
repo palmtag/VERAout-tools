@@ -563,6 +563,7 @@
         write (*,*) 'input idm1 idm2 = ', idm1, idm2
         write (*,*) 'output hdim   = ', h_dims(1:2)
         write (*,*) 'ERROR: array bounds do not match'
+        call h5_fatal('read_double2d','array bounds do not match')
         return
       endif
 
@@ -666,6 +667,7 @@
         write (*,*) 'input idm = ', idm1, idm2, idm3
         write (*,*) 'output hdim   = ', h_dims(1:3)
         write (*,*) 'ERROR: array bounds do not match'
+        call h5_fatal('read_double3d','array bounds do not match')
         return
       endif
 
@@ -774,6 +776,7 @@
         write (*,*) 'input idm = ', idm1, idm2, idm3, idm4
         write (*,*) 'output hdim   = ', h_dims(1:4)
         write (*,*) 'ERROR: array bounds do not match'
+        call h5_fatal('read_double4d','array bounds do not match')
         return
       endif
 

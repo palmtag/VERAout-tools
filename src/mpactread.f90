@@ -62,6 +62,8 @@
       real(8), allocatable :: pin2 (:,:,:)  ! 2d collapsed pin powers
       real(8), allocatable :: powertemp(:,:,:,:)
       real(8), allocatable :: power(:,:,:,:)
+      real(8), allocatable :: tmod (:,:,:,:)
+      real(8), allocatable :: tfuel(:,:,:,:)
 
       character(len=80)  :: title           ! Problem title
       character(len=2), allocatable :: xlabel(:)  ! assembly map labels
@@ -383,6 +385,8 @@
 
           allocate (powertemp(nassm, kd, npin, npin))
           allocate (power    (npin, npin, kd, nassm))
+          allocate (tmod     (npin, npin, kd, nassm))
+          allocate (tfuel    (npin, npin, kd, nassm))
           allocate (pin2     (npin, npin, nassm))
         endif
 
@@ -390,8 +394,6 @@
 
         dataset=trim(group_name)//'pin_powers'
         call hdf5_read_double(file_id, dataset, nassm, kd, npin, npin, powertemp)
-
-!--- move power to old order
 
         do n=1, nassm
           do k=1, kd
@@ -402,6 +404,37 @@
             enddo
           enddo
         enddo
+
+!-- moderator temperature [C]
+
+        dataset=trim(group_name)//'pin_modtemps'
+        call hdf5_read_double(file_id, dataset, nassm, kd, npin, npin, powertemp)
+
+        do n=1, nassm
+          do k=1, kd
+            do j=1, npin
+              do i=1, npin
+                tmod(i,j,k,n)=powertemp(n,k,j,i)
+              enddo
+            enddo
+          enddo
+        enddo
+
+!-- fuel temperature
+
+        dataset=trim(group_name)//'pin_fueltemps'
+        call hdf5_read_double(file_id, dataset, nassm, kd, npin, npin, powertemp)
+
+        do n=1, nassm
+          do k=1, kd
+            do j=1, npin
+              do i=1, npin
+                tfuel(i,j,k,n)=powertemp(n,k,j,i)
+              enddo
+            enddo
+          enddo
+        enddo
+
 
 !--- collapse
 
@@ -420,16 +453,24 @@
 
 !--- print maps
 
-        call stat3d('pin_powers', npin,  kd, nassm, axial, power, xtemp)
+        call stat3d('pin_powers   ', npin,  kd, nassm, axial, power, xtemp)
+        call stat3d('pin_modtemps ', npin,  kd, nassm, axial, tmod,  xtemp)
+        call stat3d('pin_fueltemps', npin,  kd, nassm, axial, tfuel, xtemp)
 
-        if (if3d) call print_3D_pin_map('3D pin_powers', npin, kd, nassm, power)
+        if (if3d) then
+          call print_3D_pin_map('3D pin_powers   ', npin, kd, nassm, power)
+          call print_3D_pin_map('3D pin_modtemps ', npin, kd, nassm, tmod )
+          call print_3D_pin_map('3D pin_fueltemps', npin, kd, nassm, tfuel)
+        endif
 
         if (if2d) call print_3D_pin_map('2D pin_powers', npin, 1,  nassm, pin2)
 
         if (if2da) call print2d_assm_map(npin, nassm, pin2, icore, jcore, mapcore, xlabel, ylabel)
 
         if (if1d) then
-          call print1d('pin_powers', npin, kd, nassm, power, axial)
+          call print1d('pin_powers   ', npin, kd, nassm, power, axial)
+          call print1d('pin_modtemps ', npin, kd, nassm, tmod , axial)
+          call print1d('pin_fueltemps', npin, kd, nassm, tfuel, axial)
         endif
 
         write (*,*)
@@ -462,6 +503,8 @@
       if (allocated(pin2)) then  ! protect from missing statepoints
         deallocate (pin2)
         deallocate (power)
+        deallocate (tmod)
+        deallocate (tfuel)
         deallocate (powertemp)
       endif
 
