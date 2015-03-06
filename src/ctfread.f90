@@ -19,6 +19,7 @@
 !  2014/09/22 - Update CTF data structure on HDF file
 !  2014/10/10 - Added steaming rate and rod surface temperature arrays
 !  2015/01/09 - Add multiple statepoint support
+!  2015/03/06 - Major restructure to allow edits by distribution
 !
 !  There are still some issues that need to be worked out:
 !    * There are some cases that have a very small power in non-fuel regions
@@ -34,11 +35,15 @@
       character(len=80)  :: carg            ! command line argument
       integer            :: iargs           ! number of command line arguments
       integer            :: i
+      integer            :: idis
       integer            :: ierror
       integer            :: itype
       integer            :: ndim            ! number of dimensions in HDF file
       integer            :: idim(10)        ! value of dimensions on HDF file
       integer            :: nstate=0        ! statepoint number
+      integer            :: ltcool
+      integer            :: ltfuel
+      integer            :: lpower
 
       real(8)            :: zsum
       real(8)            :: xtemp
@@ -50,16 +55,11 @@
       character(len=80)  :: dataset         ! HDF dataset name
       character(len=22)  :: state_name      ! HDF group name for STATE
       character(len=22)  :: group_name      ! HDF group name for CORE
-      character(len=30)  :: label_power     ! power label - for both input and output
-      character(len=30)  :: label_tfuel     ! tfuel label - for both input and output
-      character(len=40)  :: label_tcool     ! pincell coolant temperature label - output only
-      character(len=30)  :: label_chcool    ! channel coolant temperature label - for both input and output
-      character(len=30)  :: label_tsurf(4)  ! surface temp  label - for both input and output
-      character(len=40)  :: label_steam(4)  ! steaming rate label - for both input and output
-      character(len=30)  :: label_tsurf_max ! max surface temp label  - output
-      character(len=30)  :: label_tsurf_ave ! ave surface temp label  - output
-      character(len=40)  :: label_steam_max ! max steaming rate label - output
-      character(len=40)  :: label_steam_ave ! max steaming rate label - output
+
+      integer, parameter :: maxdist=11
+      character(len=40)  :: dist_label(maxdist)
+      logical            :: dist_print(maxdist)
+      logical            :: dist_chan (maxdist)   ! channel array flag (i.e. not pin array)
 
       integer(hid_t)     :: file_id         ! HDF file ID number
 
@@ -68,25 +68,20 @@
       integer  :: kd                        ! number of axial levels in pin maps
       integer  :: nassm                     ! number of assemblies in pin maps
       integer  :: npin                      ! number of pins across one side of assembly
+      integer  :: npin_save                 ! number of pins across one side of assembly
       integer  :: nchan                     ! number of channels across one side of assembly
 
       real(8), allocatable :: axial(:)      ! axial elevations
 
-      real(8), allocatable :: temppower(:,:,:,:)
+      real(8), allocatable :: temp1(:,:,:,:)
+      real(8), allocatable :: tdist(:,:,:,:)
+
+      real(8), allocatable :: pow2d(:,:,:)
+      real(8), allocatable :: charea(:,:,:)    ! channel areas
 
       real(8), allocatable :: power(:,:,:,:)
       real(8), allocatable :: tfuel(:,:,:,:)
-      real(8), allocatable :: charea(:,:,:)    ! channel areas
-      real(8), allocatable :: chtemp(:,:,:,:)  ! channel heights
-      real(8), allocatable :: tcool (:,:,:,:)  ! coolant temperatures per pincell
-      real(8), allocatable :: steam1(:,:,:,:)
-      real(8), allocatable :: steam2(:,:,:,:)
-      real(8), allocatable :: steam3(:,:,:,:)
-      real(8), allocatable :: steam4(:,:,:,:)
-      real(8), allocatable :: tsurf1(:,:,:,:)
-      real(8), allocatable :: tsurf2(:,:,:,:)
-      real(8), allocatable :: tsurf3(:,:,:,:)
-      real(8), allocatable :: tsurf4(:,:,:,:)
+      real(8), allocatable :: tcool(:,:,:,:)  ! coolant temperatures per pincell
 
 ! command line flags
 
@@ -100,25 +95,24 @@
 
       filename=' '
 
-      label_power='pin_powers [W per cm]'
-      label_tfuel='pin_fueltemps [C]'
-      label_tcool='Pincell Coolant Temperatures [C]'   ! output only
-      label_chcool='channel_liquid_temps [C]'
+      dist_label( 1)="Rod_Surface_Temp_NE_Quad [C]"
+      dist_label( 2)="Rod_Surface_Temp_NW_Quad [C]"
+      dist_label( 3)="Rod_Surface_Temp_SE_Quad [C]"
+      dist_label( 4)="Rod_Surface_Temp_SW_Quad [C]"
+      dist_label( 5)="Steaming_Rate_NE_Quad [kg_per_s]"
+      dist_label( 6)="Steaming_Rate_NW_Quad [kg_per_s]"
+      dist_label( 7)="Steaming_Rate_SE_Quad [kg_per_s]"
+      dist_label( 8)="Steaming_Rate_SW_Quad [kg_per_s]"
+      dist_label( 9)="channel_liquid_temps [C]"
+      dist_label(10)="pin_fueltemps [C]"
+      dist_label(11)="pin_powers [W per cm]"
 
-      label_tsurf(1)='Rod_Surface_Temp_1 [C]'
-      label_tsurf(2)='Rod_Surface_Temp_2 [C]'
-      label_tsurf(3)='Rod_Surface_Temp_3 [C]'
-      label_tsurf(4)='Rod_Surface_Temp_4 [C]'
+      dist_chan(:)=.false.   ! pin arrays
+      dist_chan(9)=.true.    ! mark as channel array
 
-      label_steam(1)='Steaming_Rate_Segment1 [kg_per_s]'
-      label_steam(2)='Steaming_Rate_Segment2 [kg_per_s]'
-      label_steam(3)='Steaming_Rate_Segment3 [kg_per_s]'
-      label_steam(4)='Steaming_Rate_Segment4 [kg_per_s]'
-
-      label_tsurf_max='Rod_Surface_MaxSurf [C]'
-      label_tsurf_ave='Rod_Surface_AveSurf [C]'
-      label_steam_max='Steaming_Rate_MaxSurf [kg_per_s]'
-      label_steam_ave='Steaming_Rate_AveSurf [kg_per_s]'
+      ltcool=9    ! save location of tcool
+      ltfuel=10   ! save location of tfuel
+      lpower=11   ! save location of power
 
 !----------------------------------------------------------------------
 !  Read in arguments from command line
@@ -126,11 +120,21 @@
 
       iargs = command_argument_count()
       if (iargs.lt.1) then
-        write (*,*) 'usage:  ctfread.exe [hdf5_file] {1D/2D/3D/tfuel/exit}'
+        write (*,*) 'usage:  ctfread.exe [hdf5_file] {1D/2D/3D/tfuel/exit} {dN}'
+
+        write (*,*)
+        write (*,*) 'distribution list for dN option:'
+        do idis=1, maxdist
+          write (*,18) idis, trim(dist_label(idis))
+        enddo
+
         stop
       endif
+   18 format ('   d',i0,2x,a)
 
 ! parse command line arguments
+
+      idis=0
 
       do i=1, iargs
         call get_command_argument(i,carg)
@@ -144,15 +148,47 @@
           iftfuel=.true.
         elseif (carg.eq.'exit') then
           ifexit=.true.
+        elseif (carg.eq.'d0') then
+          idis=0
+        elseif (carg.eq.'d1') then   ! this is sloppy - needs to be generalized
+          idis=1
+        elseif (carg.eq.'d2') then
+          idis=2
+        elseif (carg.eq.'d3') then
+          idis=3
+        elseif (carg.eq.'d4') then
+          idis=4
+        elseif (carg.eq.'d5') then
+          idis=5
+        elseif (carg.eq.'d6') then
+          idis=6
+        elseif (carg.eq.'d7') then
+          idis=7
+        elseif (carg.eq.'d8') then
+          idis=8
+        elseif (carg.eq.'d9') then
+          idis=9
+        elseif (carg.eq.'d10') then
+          idis=10
+        elseif (carg.eq.'d11') then
+          idis=11
         else
           filename=carg
         endif
       enddo
 
-      if (.not.if1d)  write (*,*) 'no 1D edits requested on command line'
-      if (.not.if2d)  write (*,*) 'no 2D edits requested on command line'
-      if (.not.if3d)  write (*,*) 'no 3D edits requested on command line'
-      if (.not.ifexit)  write (*,*) 'no exit edits requested on command line'
+      if (idis.eq.0) then   ! print all distributions
+        dist_print(:)=.true.
+      else                  ! only print one distribution
+        dist_print(:)=.false.
+        dist_print(idis)=.true.
+      endif
+
+      if (iftfuel) then       ! turn on options needed for fuel temp fit
+        dist_print(ltcool)=.true.   ! turn on coolant temp
+        dist_print(ltfuel)=.true.   ! turn on fuel temp
+        dist_print(lpower)=.true.   ! turn on power
+      endif
 
 !--- initialize HDF fortran interface
 
@@ -168,8 +204,7 @@
       endif
       call h5fopen_f (filename, H5F_ACC_RDONLY_F, file_id, ierror)  ! read only
       if (ierror.lt.0) then
-        write (*,'(3a)') 'error: H5 input file ',trim(filename), &
-                   ' could not be opened'
+        write (*,'(3a)') 'error: H5 input file ',trim(filename),' could not be opened'
         stop
       endif
 
@@ -244,21 +279,16 @@
 
       if (ifdebug) write (*,*) 'debug: allocating pin arrays'
 
-      allocate (power    (npin, npin, kd, nassm))
-      allocate (tfuel    (npin, npin, kd, nassm))
-      allocate (chtemp   (nchan,nchan,kd, nassm))
-      allocate (tcool    (npin, npin, kd, nassm))  ! coolant temps per pincell
-      allocate (tsurf1   (npin, npin, kd, nassm))
-      allocate (tsurf2   (npin, npin, kd, nassm))
-      allocate (tsurf3   (npin, npin, kd, nassm))
-      allocate (tsurf4   (npin, npin, kd, nassm))
-      allocate (steam1   (npin, npin, kd, nassm))
-      allocate (steam2   (npin, npin, kd, nassm))
-      allocate (steam3   (npin, npin, kd, nassm))
-      allocate (steam4   (npin, npin, kd, nassm))
+      if (iftfuel) then
+        allocate (power (npin, npin, kd, nassm))
+        allocate (tfuel (npin, npin, kd, nassm))
+        allocate (tcool (npin, npin, kd, nassm))  ! coolant temps per pincell
+      endif
+
+      npin_save=npin   ! save value for allocations below
 
 !----------------------------------------------------
-!  Read STATE group - only one statepoint supported at this time
+!  Read STATE group
 !----------------------------------------------------
 
   40 format (/,'--------------------------',&
@@ -284,203 +314,118 @@
 
         write (*,40) nstate
 
-!--- check if steaming data exists
-
-        dataset=trim(state_name)//label_steam(1)
-        call h5lexists_f(file_id, dataset, ifsteam, ierror)
-        if (.not.ifsteam) then
-          write (*,'(2a)') '>>', trim(dataset)
-          write (*,'(2a)') 'WARNING: Steaming data does not exist for this file'
-        endif
-
 !--------------------------------------------------------------------------------
 ! Read Statepoint Data
 !--------------------------------------------------------------------------------
 
+      do idis=1, maxdist
+        if (.not.dist_print(idis)) cycle   ! skip distribution
+
+        dataset=trim(state_name)//dist_label(idis)
+        call h5lexists_f(file_id, dataset, ifsteam, ierror)
+        if (.not.ifsteam) then
+          write (*,'(2a)') '>>', trim(dataset)
+          write (*,'(2a)') 'WARNING: dataset does not exist for this file'
+          cycle
+        endif
+
+        if (dist_chan(idis)) then    ! set size of temporary array
+           npin=nchan
+        else
+           npin=npin_save
+        endif
+        allocate (tdist(npin, npin, kd, nassm))
+
 !--- read 4D data into temporary array then change order
 
-!--- pin power
-
-        allocate (temppower(nassm,kd,npin,npin))
-
-        dataset=trim(state_name)//label_power
-        call hdf5_read_double(file_id, dataset, nassm, kd, npin, npin, temppower)
-        call transpose4d(npin, npin, kd, nassm, temppower, power)
-        call checkdata ('power', npin, kd, nassm, power)
-
-!--- tfuel
-
-        dataset=trim(state_name)//label_tfuel
-        call hdf5_read_double(file_id, dataset, nassm, kd, npin, npin, temppower)
-        call transpose4d(npin, npin, kd, nassm, temppower, tfuel)
-        call checkdata ('tfuel', npin, kd, nassm, tfuel)
-
-!--- surface temp
-
-      if (ifsteam) then
-        dataset=trim(state_name)//label_steam(1)
-        call hdf5_read_double(file_id, dataset, nassm, kd, npin, npin, temppower)
-        call transpose4d(npin, npin, kd, nassm, temppower, steam1)
-!!      call checkdata ('steam1', npin, kd, nassm, steam1)   ! ** don't check steam values, they could be small!
-
-        dataset=trim(state_name)//label_steam(2)
-        call hdf5_read_double(file_id, dataset, nassm, kd, npin, npin, temppower)
-        call transpose4d(npin, npin, kd, nassm, temppower, steam2)
-!!      call checkdata ('steam2', npin, kd, nassm, steam2)
-
-        dataset=trim(state_name)//label_steam(3)
-        call hdf5_read_double(file_id, dataset, nassm, kd, npin, npin, temppower)
-        call transpose4d(npin, npin, kd, nassm, temppower, steam3)
-!!      call checkdata ('steam3', npin, kd, nassm, steam3)
-
-        dataset=trim(state_name)//label_steam(4)
-        call hdf5_read_double(file_id, dataset, nassm, kd, npin, npin, temppower)
-        call transpose4d(npin, npin, kd, nassm, temppower, steam4)
-!!      call checkdata ('steam4', npin, kd, nassm, steam4)
-
-        dataset=trim(state_name)//label_tsurf(1)
-        call hdf5_read_double(file_id, dataset, nassm, kd, npin, npin, temppower)
-        call transpose4d(npin, npin, kd, nassm, temppower, tsurf1)
-        call checkdata ('tsurf1', npin, kd, nassm, tsurf1)
-
-        dataset=trim(state_name)//label_tsurf(2)
-        call hdf5_read_double(file_id, dataset, nassm, kd, npin, npin, temppower)
-        call transpose4d(npin, npin, kd, nassm, temppower, tsurf2)
-        call checkdata ('tsurf2', npin, kd, nassm, tsurf2)
-
-        dataset=trim(state_name)//label_tsurf(3)
-        call hdf5_read_double(file_id, dataset, nassm, kd, npin, npin, temppower)
-        call transpose4d(npin, npin, kd, nassm, temppower, tsurf3)
-        call checkdata ('tsurf3', npin, kd, nassm, tsurf3)
-
-        dataset=trim(state_name)//label_tsurf(4)
-        call hdf5_read_double(file_id, dataset, nassm, kd, npin, npin, temppower)
-        call transpose4d(npin, npin, kd, nassm, temppower, tsurf4)
-        call checkdata ('tsurf4', npin, kd, nassm, tsurf4)
-
-      endif
-
-      deallocate (temppower)
-
-!--- channel coolant
-
-        allocate (temppower(nassm,kd,nchan,nchan))
-
-        dataset=trim(state_name)//label_chcool
-        call hdf5_read_double(file_id, dataset, nassm, kd, nchan, nchan, temppower)
-        call transpose4d(nchan, nchan, kd, nassm, temppower, chtemp)
-
-        deallocate (temppower)
+        allocate (temp1(nassm,kd,npin,npin))
+        dataset=trim(state_name)//dist_label(idis)
+        call hdf5_read_double(file_id, dataset, nassm, kd, npin, npin, temp1)
+        call transpose4d(npin, npin, kd, nassm, temp1, tdist)
+        deallocate (temp1)
 
 !--- check data
 
-!  calculate pincell-based coolant temperatures
-
-        call pincell_coolant(nchan, npin, kd, nassm, charea, chtemp, tcool)
-
-!  convert to max and average steam rates  (1=max, 2=average)
-
-        if (ifsteam) then    ! edit before transformation
-          call stat3d(label_tsurf(1), npin,  kd, nassm, axial, tsurf1, xtemp)
-          call stat3d(label_tsurf(2), npin,  kd, nassm, axial, tsurf2, xtemp)
-          call stat3d(label_tsurf(3), npin,  kd, nassm, axial, tsurf3, xtemp)
-          call stat3d(label_tsurf(4), npin,  kd, nassm, axial, tsurf4, xtemp)
-          call stat3d(label_steam(1), npin,  kd, nassm, axial, steam1, xtemp)
-          call stat3d(label_steam(2), npin,  kd, nassm, axial, steam2, xtemp)
-          call stat3d(label_steam(3), npin,  kd, nassm, axial, steam3, xtemp)
-          call stat3d(label_steam(4), npin,  kd, nassm, axial, steam4, xtemp)
-
-          call surfmaxave(nassm, npin, kd, steam1, steam2, steam3, steam4)
-          call surfmaxave(nassm, npin, kd, tsurf1, tsurf2, tsurf3, tsurf4)
+        if (dist_label(idis)(1:5).ne.'Steam') then    !*** don't check steam
+          call checkdata (dist_label(idis), npin, kd, nassm, tdist)
         endif
 
-!------------------
-!    Edits
-!------------------
+!--- save distributions for fuel temperature fit
+!--- calculate pincell-based coolant temperatures from channel distributions
 
-!--- print overall statistics stats
-
-        call stat3d(label_power,  npin,  kd, nassm, axial, power, xtemp)
-        call stat3d(label_tfuel,  npin,  kd, nassm, axial, tfuel, xtemp)
-        if (ifsteam) then
-          call stat3d(label_tsurf_max,  npin,  kd, nassm, axial, tsurf1, xtemp)
-          call stat3d(label_tsurf_ave,  npin,  kd, nassm, axial, tsurf2, xtemp)
-          call stat3d(label_steam_max,  npin,  kd, nassm, axial, steam1, xtemp)
-          call stat3d(label_steam_ave,  npin,  kd, nassm, axial, steam2, xtemp)
+        if (iftfuel) then
+          if (idis.eq.ltcool) then
+            if (.not.dist_chan(idis)) stop 'failed sanity check'
+            call pincell_coolant(nchan, npin_save, kd, nassm, charea, tdist, tcool)
+          endif
+          if (idis.eq.lpower) then
+            power=tdist
+          endif
+          if (idis.eq.ltfuel) then
+            tfuel=tdist
+          endif
         endif
 
-        call stat3d(label_tcool, npin, kd, nassm, axial, tcool, xtemp)
+!--- print overall statistics
+
+        call stat3d(dist_label(idis),  npin,  kd, nassm, axial, tdist, xtemp)
         write (*,*) '(coolant averages do not include flow area weighting)'
 
-        call stat3d(label_chcool, nchan, kd, nassm, axial, chtemp, xtemp)
-        write (*,*) '(coolant averages do not include flow area weighting)'
-
-!--- print 3D maps
+!--- 3D edits
 
         if (if3d) then
-          write (*,*)
-          write (*,*) '===== 3D Maps ====='
-          call print_3D_pin_map(label_power,  npin,  kd, nassm, power)
-          call print_3D_pin_map(label_tfuel,  npin,  kd, nassm, tfuel)
-          call print_3D_pin_map(label_tcool,  npin,  kd, nassm, tcool)
-          call print_3D_pin_map(label_chcool, nchan, kd, nassm, chtemp)
-          if (ifsteam) then
-            call print_3D_pin_map(label_tsurf_max, npin, kd, nassm, tsurf1)
-            call print_3D_pin_map(label_tsurf_ave, npin, kd, nassm, tsurf2)
-            call print_3D_pin_map(label_steam_max, npin, kd, nassm, steam1)
-            call print_3D_pin_map(label_steam_ave, npin, kd, nassm, steam2)
-          endif
+          call print_3D_pin_map(dist_label(idis),  npin,  kd, nassm, tdist)
         endif
 
 !--- 2D edits
 
-   ! **** To-Do
+        if (if2d) then
+          allocate (pow2d(npin, npin, nassm))
+          call collapse2d(npin, kd, nassm, axial, tdist, pow2d)
+          call print_3D_pin_map('2D '//dist_label(idis), npin, 1,  nassm, pow2d)
+          deallocate (pow2d)
+        endif
 
 !--- print exit maps
 
         if (ifexit) then
           write (*,*)
           write (*,*) '===== Exit Maps ====='
-          call print_exit_map(label_power,  npin,  kd, nassm, power)
-          call print_exit_map(label_tcool,  npin,  kd, nassm, tcool)
-          call print_exit_map(label_chcool, nchan, kd, nassm, chtemp)
+          call print_exit_map(dist_label(idis),  npin,  kd, nassm, tdist)
         endif
 
 !--- 1D edits
 
         if (if1d) then
-           call print1d(label_power, npin, kd, nassm, power, axial)
-           call print1d(label_tfuel, npin, kd, nassm, tfuel, axial)
-           call print1d(label_tcool, npin, kd, nassm, tcool, axial)
-           write (*,*) '(coolant averages do not include flow area weighting)'
-           if (ifsteam) then
-             call print1d(label_tsurf_max, npin, kd, nassm, tsurf1, axial)
-             call print1d(label_tsurf_ave, npin, kd, nassm, tsurf2, axial)
-             call print1d(label_steam_max, npin, kd, nassm, steam1, axial)
-             call print1d(label_steam_ave, npin, kd, nassm, steam2, axial)
-           endif
+          call print1d(dist_label(idis), npin, kd, nassm, tdist, axial)
         endif
+
+        deallocate (tdist)
+
+      enddo   ! loop over distributions
 
 !=================================================================
 !  Special edit to calculate fuel temperature fit
 !=================================================================
 
+      npin=npin_save     ! reset
+
 !--- calculate quadratic fit of fuel temp vs. linear power
 
-        if (iftfuel) then
-          i=npin*npin*kd*nassm
+      if (iftfuel) then
+        i=npin*npin*kd*nassm
 
-!d        call quadratic(i, power, tfuel)  ! generate fit w/o subtracting coolant
+!d      call quadratic(i, power, tfuel)  ! generate fit w/o subtracting coolant
 
 !    calculate quadratic fit by subtracting coolant from fuel temp first
 !    this edit also creates a large csv file
 
-          call subtract_cool(npin, kd, nassm, power, tfuel, tcool)
+        call subtract_cool(npin, kd, nassm, power, tfuel, tcool)
 
-          i=npin*npin*kd*nassm
-          call quadratic(i, power, tfuel)
+        i=npin*npin*kd*nassm
+        call quadratic(i, power, tfuel)
 
-        endif
+      endif
 
 !--------------------------------------------------------------------------------
 !   Finish Statepoints
@@ -499,20 +444,13 @@
 
 !--- deallocate memory
 
-      if (allocated(tfuel)) then
+      deallocate (axial)
+      deallocate (charea)
+
+      if (iftfuel) then
         deallocate (tfuel)
+        deallocate (tcool)
         deallocate (power)
-        deallocate (axial)
-        deallocate (charea)
-        deallocate (chtemp)
-        deallocate (steam1)
-        deallocate (steam2)
-        deallocate (steam3)
-        deallocate (steam4)
-        deallocate (tsurf1)
-        deallocate (tsurf2)
-        deallocate (tsurf3)
-        deallocate (tsurf4)
       endif
 
       write (*,'(/,a)') 'done'
@@ -810,7 +748,7 @@
       integer, intent(in) :: nchan, npin, kd, nassm
       real(8), intent(in) :: charea(nassm,nchan,nchan)
       real(8), intent(in) :: chtemp (nchan,nchan,kd, nassm)  ! coolant temps per channel
-      real(8), intent(out):: tcool(npin, npin, kd, nassm)  ! coolant temps per pincell
+      real(8), intent(out):: tcool(npin, npin, kd, nassm)    ! coolant temps per pincell
 
       real(8) :: parea(npin,npin,nassm)   ! automatic
 

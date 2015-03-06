@@ -3,7 +3,7 @@
 !  Program to read an existing MPACT HDF output file and
 !   generate a mesh file and XMF file for plotting with VISIT or PARAVIEW
 !
-!  Copyright (c) 2014 Core Physics, Inc.
+!  Copyright (c) 2014-2015 Core Physics, Inc.
 !
 !  Distributed under the MIT license.
 !  See the LICENSE file in the main directory for details.
@@ -135,7 +135,7 @@
 
 ! read exposure value at this statepoint
 
-        dataset=trim(state_name)//'exposure_GWDMT'
+        dataset=trim(state_name)//'exposure_efpd'
         call hdf5_read_double  (file_id, dataset, xexp)
         write (*,'(2a,f12.5)') trim(dataset), ' exposure ', xexp
 

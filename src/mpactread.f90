@@ -528,7 +528,7 @@
           endif
 
           if (if2d .or. if2da) then
-            call collapse(npin, kd, nassm, tdist, axial, tdist2d)
+            call collapse2d(npin, kd, nassm, axial, tdist, tdist2d)
           endif
 
           if (dist_label(idis).eq.'pin_powers') then    ! special edits just for power
@@ -590,105 +590,6 @@
       write (*,'(/,a)') 'done'
 
       end program
-!=======================================================================
-!
-!  Collapse 3D edits to 2D and 1D
-!
-!=======================================================================
-      subroutine collapse(npin, kd, nassm, power, axial, pin2)
-      implicit none
-      integer, intent(in) :: npin, kd, nassm
-      real(8), intent(in) :: power(npin,npin,kd,nassm)
-      real(8), intent(in) :: axial(kd)
-      real(8), intent(out):: pin2(npin,npin,nassm)
-
-!--- local
-
-      integer :: i, j, k
-      integer :: na
-      integer :: k3min(4)
-      integer :: k3max(4)
-      integer :: k2min(3)
-      integer :: k2max(3)
-      real(8) :: pp
-      real(8) :: zave, zrod
-      real(8) :: c3min, c3max
-      real(8) :: c2min, c2max
-      real(8) :: cave, clen
-
-      pin2(:,:,:)=0.0d0
-
-      c3max=0.0d0        ! 3D core max
-      c3min=1.0d20       ! 3D core min
-      c2max=0.0d0        ! 2D core max
-      c2min=1.0d20       ! 2D core min
-      cave=0.0d0         ! core average
-      clen=0.0d0         ! core fuel length
-      k3max(:)=0         ! 3D core max i, j, k, n
-      k3min(:)=0         ! 3D core min i, j, k, n
-      k2max(:)=0         ! 2D core max i, j, n
-      k2min(:)=0         ! 2D core min i, j, n
-
-      write (*,'(/,1x,a)') 'Collapsing 3D edits to 2D'
-
-!--- collapse to 2D
-
-      do na=1, nassm     ! loop over assemblies
-        do j=1, npin
-          do i=1, npin
-            zrod=0.0d0
-            zave=0.0d0   ! 2D axial height with power
-            do k=1, kd   ! loop over axial levels
-              pp=power(i,j,k,na)
-              if (pp.gt.0.0d0) then
-                zrod=zrod+axial(k)*pp
-                zave=zave+axial(k)
-                if (pp.lt.c3min) then
-                  c3min=pp
-                  k3min(1)=i
-                  k3min(2)=j
-                  k3min(3)=k
-                  k3min(4)=na
-                endif
-                if (pp.gt.c3max) then
-                  c3max=pp
-                  k3max(1)=i
-                  k3max(2)=j
-                  k3max(3)=k
-                  k3max(4)=na
-                endif
-              endif
-            enddo
-            if (zave.gt.0.0d0) then
-              pin2(i,j,na)=zrod/zave
-              pp=pin2(i,j,na)
-              if (pp.lt.c2min) then
-                c2min=pp
-                k2min(1)=i
-                k2min(2)=j
-                k2min(3)=na
-              endif
-              if (pp.gt.c2max) then
-                c2max=pp
-                k2max(1)=i
-                k2max(2)=j
-                k2max(3)=na
-              endif
-            endif
-          enddo
-        enddo
-      enddo      ! na
-
-      write (*,180) 'max', c3max, k3max(:)
-      write (*,180) 'min', c3min, k3min(:)
-      write (*,190) 'max', c2max, k2max(:)
-      write (*,190) 'min', c2min, k2min(:)
-
-  180 format (' 3D ',a,' in core =', f10.4,' at (i,j,k,na)', 4i4)
-  190 format (' 2D ',a,' in core =', f10.4,' at (i,j,na)  ', 2i4,4x,i4)
-
-      return
-      end subroutine collapse
 
 !=======================================================================
 !
