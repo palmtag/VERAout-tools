@@ -134,7 +134,7 @@
 
 ! parse command line arguments
 
-      idis=0
+      idis=-1
 
       do i=1, iargs
         call get_command_argument(i,carg)
@@ -177,11 +177,11 @@
         endif
       enddo
 
-      if (idis.eq.0) then   ! print all distributions
+      if (idis.eq.-1) then   ! print all distributions
         dist_print(:)=.true.
-      else                  ! only print one distribution
+      else                   ! only print one distribution
         dist_print(:)=.false.
-        dist_print(idis)=.true.
+        if (idis.gt.0 .and. idis.le.maxdist) dist_print(idis)=.true.
       endif
 
       if (iftfuel) then       ! turn on options needed for fuel temp fit

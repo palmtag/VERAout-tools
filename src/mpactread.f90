@@ -132,7 +132,7 @@
 
 ! parse command line arguments
 
-      idis=0
+      idis=-1
 
       do i=1, iargs
         call get_command_argument(i,carg)
@@ -144,6 +144,8 @@
           if2da=.true.
         elseif (carg.eq.'1D' .or. carg.eq.'1d') then
           if1d=.true.
+        elseif (carg.eq.'d0') then
+          idis=0
         elseif (carg.eq.'d1') then
           idis=1
         elseif (carg.eq.'d2') then
@@ -159,11 +161,11 @@
         endif
       enddo
 
-      if (idis.eq.0) then   ! print all distributions
+      if (idis.eq.-1) then   ! print all distributions
         dist_print(:)=.true.
       else                  ! only print one distribution
         dist_print(:)=.false.
-        dist_print(idis)=.true.
+        if (idis.ge.1 .and. idis.le.maxdist) dist_print(idis)=.true.
       endif
 
       if (.not.if1d)  write (*,*) 'no 1D edits requested on command line'
@@ -545,7 +547,7 @@
             call print1d(dist_label(idis), npin, kd, nassm, tdist, axial)
           endif
 
-          if (if2da .and. dist_label(idis).eq.'pin_powers') then    ! special edits just for power
+          if (if2da) then     ! 2D assembly edits
             call print2d_assm_map(npin, nassm, tdist2d, icore, jcore, mapcore, xlabel, ylabel)
           endif
 
@@ -604,6 +606,8 @@
       real(8), intent(in) :: pow2(npin,npin,nassm)
       character(len=*), intent(in) :: xlabel(icore)
       character(len=*), intent(in) :: ylabel(jcore)
+
+      character(len=8) :: fmt
 
       integer          :: i, j, nn
       integer          :: nnsave
@@ -670,6 +674,9 @@
       write (*,130) 'minimum', pmin
   130 format (1x,a,' assembly power  ', f8.4)
 
+      fmt='(f8.4)'
+      if (pp.gt.100.0d0) fmt='(f8.2)'
+
 !--- print map
 
       write (*,'("  **  ",50(4x,a2,2x))') (xlabel(i),i=1,icore)   ! labels are 2
@@ -680,7 +687,7 @@
            if (mapcore(i,j).eq.0) then
              write (*,'(8x)',advance='no')
            else
-             write (*,'(f8.4)',advance='no') passm(mapcore(i,j))
+             write (*,fmt,advance='no') passm(mapcore(i,j))
            endif
         enddo
         write (*,*)
