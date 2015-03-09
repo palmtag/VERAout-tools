@@ -19,30 +19,6 @@ This repository contains the following source files:
 * ctfread.f90 - Simple program to read HDF output file created by CTF
 
 
-#### Hint: How to install HDF5 Library on your computer
+#### See the Wiki for information on installing HDF5
 
-This section contains information on installing HDF5 on your computer system.
-
-You must have a fortran compiler installed on your system.
-
-Information on the latest HDF5 source can be found at:
-   http://www.hdfgroup.org/HDF5/release/obtain5.html
-
-```
-All:
-
-  HVER=hdf5-1.8.13    # latest source on 2014/07/20
-  wget http://www.hdfgroup.org/ftp/HDF5/current/src/$HVER.tar.gz
-  tar vxfz  $HVER.tar.gz
-  cd $HVER
-
-Linux:
-
-  # export F9X=ifort     # add this if using Intel Fortran
-  ./configure --enable-fortran --enable-cxx --prefix=/opt/hdf5
-  make
-  make check
-  sudo make install
-
-```
-
+#### See the Wiki to learn more about the "mpactread" utility
