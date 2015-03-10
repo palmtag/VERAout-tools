@@ -56,7 +56,7 @@
       character(len=22)  :: state_name      ! HDF group name for STATE
       character(len=22)  :: group_name      ! HDF group name for CORE
 
-      integer, parameter :: maxdist=11
+      integer, parameter :: maxdist=12
       character(len=40)  :: dist_label(maxdist)
       logical            :: dist_print(maxdist)
       logical            :: dist_chan (maxdist)   ! channel array flag (i.e. not pin array)
@@ -106,6 +106,7 @@
       dist_label( 9)="channel_liquid_temps [C]"
       dist_label(10)="pin_fueltemps [C]"
       dist_label(11)="pin_powers [W per cm]"
+      dist_label(12)="pin_powers"     ! no units
 
       dist_chan(:)=.false.   ! pin arrays
       dist_chan(9)=.true.    ! mark as channel array
@@ -123,7 +124,7 @@
         write (*,*) 'usage:  ctfread.exe [hdf5_file] {1D/2D/3D/tfuel/exit} {dN}'
 
         write (*,*)
-        write (*,*) 'distribution list for dN option:'
+        write (*,*) 'list of distributions for dN option:'
         do idis=1, maxdist
           write (*,18) idis, trim(dist_label(idis))
         enddo
@@ -170,8 +171,12 @@
           idis=9
         elseif (carg.eq.'d10') then
           idis=10
-        elseif (carg.eq.'d11') then
+        elseif (carg.eq.'d11') then   ! set both power edits
           idis=11
+          idis=12
+        elseif (carg.eq.'d12') then
+          idis=11
+          idis=12
         else
           filename=carg
         endif
@@ -491,6 +496,7 @@
 
       integer :: i, j, k, n
       integer :: nn   ! number of negative values
+      integer :: nsm  ! number of small    values
       real(8) :: pp
 
       nn=0
@@ -506,7 +512,8 @@
                  power(i,j,k,n)=0.0d0
               endif
               if (pp.gt.0.0d0 .and. pp.lt.1.0d-4) then
-                 write (*,*) 'small data ', label, i, j, k, n, pp
+                 nsm=nsm+1
+                 if (nsm.le.100) write (*,*) 'small data ', label, i, j, k, n, pp
                  power(i,j,k,n)=0.0d0
               endif
             enddo
@@ -517,6 +524,10 @@
       if (nn.gt.0) then
         write (*,*) 'negative data found in ', nn, ' locations - fixing up'
         write (*,*) 'negative data is usually due to negative temperatures in guide tubes'
+      endif
+      if (nsm.gt.100) then
+        write (*,*) 'small data found in ', nsm, ' locations - fixing up'
+        write (*,*) 'only first 100 error messages printed'
       endif
 
       return
@@ -575,6 +586,11 @@
            rhs(3)=rhs(3)+y(i)*pp*pp
         endif
       enddo
+      if (nn.eq.0) then
+        write (*,*) 'No power found in power arrays - is this a zero power case?'
+        write (*,*) 'Skipping fuel temperature fit'
+        return
+      endif
       write (*,*) 'nn   = ', nn
       write (*,*) 'pave = ', sum1/dble(nn)
       write (*,*) 'tave = ', rhs(1)/dble(nn)
@@ -628,9 +644,10 @@
       write (*,*) 'c3 = ', c(3)
 
       write (*,*)
-      write (*,*) 'T(0)     =', c(1)
-      write (*,*) 'T(pave)  =', c(1)+sum1*(c(2)+c(3)*sum1)
-      write (*,*) 'T(pave*2)=', c(1)+sum1*2.0d0*(c(2)+c(3)*sum1*2.0d0)
+      write (*,*) 'Representative values of fit:'
+      write (*,*) '  T(0)     =', c(1)
+      write (*,*) '  T(pave)  =', c(1)+sum1*(c(2)+c(3)*sum1)
+      write (*,*) '  T(pave*2)=', c(1)+sum1*2.0d0*(c(2)+c(3)*sum1*2.0d0)
 
 ! check matrix
 
