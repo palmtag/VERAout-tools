@@ -2,7 +2,7 @@
 !
 !  Subroutines for writing 1D and 2D maps to output
 !
-!  Copyright (c) 2014 Core Physics, Inc.
+!  Copyright (c) 2014-2015 Core Physics, Inc.
 !
 !  Distributed under the MIT license.
 !  See the LICENSE file in the main directory for details.
@@ -11,8 +11,132 @@
 !
 !  Subroutine to print 3D statistics
 !
+!  General version that considers qtr-symmetry
+!
 !=======================================================================
-      subroutine stat3d (title, npin, kd, nassm, axial, power, pmax)
+      subroutine stat3d (title, npin, kd, nassm, icore, jcore, mapcore, axial, power, pave, pmax)
+      implicit none
+      integer, intent(in) :: npin, kd, nassm
+      integer, intent(in) :: icore, jcore
+      integer, intent(in) :: mapcore(icore,jcore)
+      real(8), intent(in) :: axial(kd)
+      real(8), intent(in) :: power(npin,npin,kd,nassm)
+      real(8), intent(out):: pave   ! average
+      real(8), intent(out):: pmax   ! max
+      character(len=*), intent(in) :: title
+
+!--- local
+
+      integer  :: i, j, k
+      integer  :: ia, ja, na, kpin
+      real(8)  :: pp
+      real(8)  :: zlen, zave      ! axial values
+      real(8)  :: c3min, c3max    ! 3D values
+      integer  :: k3min(4)        ! 3D min locations
+      integer  :: k3max(4)        ! 3D max locations
+
+!--- calculate 3D statistics
+
+      pave=0.0d0   ! output average
+      pmax=0.0d0   ! output maximum
+
+      kpin=0
+      zave=0.0d0
+      zlen=0.0d0
+      c3min=1.0d20
+      c3max=0.0d0
+      k3min(:)=0
+      k3max(:)=0
+
+      do ja=1, jcore     ! loop over assemblies in full-core
+        do ia=1, icore   ! loop over assemblies in full-core
+        na=mapcore(ia,ja)
+        if (na.eq.0) cycle
+
+        do k=1, kd
+          do j=1, npin
+            do i=1, npin
+              pp=power(i,j,k,na)
+              if (pp.gt.0.0d0) then
+                zave=zave+axial(k)*pp
+                zlen=zlen+axial(k)
+                kpin=kpin+1
+                if (pp.lt.c3min) then
+                  c3min=pp
+                  k3min(1)=i
+                  k3min(2)=j
+                  k3min(3)=k
+                  k3min(4)=na
+                endif
+                if (pp.gt.c3max) then
+                  c3max=pp
+                  k3max(1)=i
+                  k3max(2)=j
+                  k3max(3)=k
+                  k3max(4)=na
+                endif
+
+              endif
+            enddo
+          enddo
+        enddo
+      enddo    ! ia
+      enddo    ! ja
+      if (zlen.gt.0.0d0) then
+        zave=zave/zlen
+      else
+        c3min=0.0d0    ! avoid overflow
+      endif
+
+      write (*,'(/,1x,2a)') '3D Statistics - ', trim(title)
+
+      if (c3max.gt.0.0d0 .and. c3max.lt.0.001d0) then ! print exponent
+        write (*,190) 'Min ', c3min
+        write (*,190) 'Max ', c3max
+        write (*,192) 'Ave ', zave
+      else
+        write (*,180) 'Min ', c3min, k3min(:)
+        write (*,180) 'Max ', c3max, k3max(:)
+        write (*,182) 'Ave ', zave
+      endif
+      write (*,'(a,i10)  ')  '  Num ', kpin
+
+  180 format (2x, a,f10.4,'  at (i,j,k,na)', 4i4)
+  182 format (2x, a,f10.4)
+  190 format (2x, a,1p,e14.5,'  at (i,j,k,na)', 0p, 4i4)
+  192 format (2x, a,1p,e14.5)
+
+      pave=zave    ! return max value
+      pmax=c3max   ! return max value
+
+!--- check for very small values
+
+      do k=1, kd
+        do na=1, nassm
+          do j=1, npin
+            do i=1, npin
+              pp=power(i,j,k,na)
+              if (pp.gt.0.0d0) then
+                if (pp.lt.zave*1.0d-4) then
+                   write (*,*) 'small value detected ', i, j, k, na, pp
+                endif
+              endif
+            enddo
+          enddo
+        enddo
+      enddo
+
+
+      return
+      end subroutine stat3d
+!=======================================================================
+!
+!  Subroutine to print 3D statistics
+!
+!  Simple version - does straight average without considering qtr-symmetry
+!
+!=======================================================================
+      subroutine stat3d_simple (title, npin, kd, nassm, axial, power, pmax)
       implicit none
       integer, intent(in) :: npin, kd, nassm
       real(8), intent(in) :: axial(kd)
@@ -116,7 +240,7 @@
 
 
       return
-      end subroutine stat3d
+      end subroutine stat3d_simple
 
 !=======================================================================
 !
@@ -381,8 +505,9 @@
 !  Collapse 3D edits to 2D
 !
 !=======================================================================
-      subroutine collapse2d(npin, kd, nassm, axial, power, pow2d)
+      subroutine collapse2d(label, npin, kd, nassm, axial, power, pow2d)
       implicit none
+      character(len=*), intent(in) :: label
       integer, intent(in) :: npin, kd, nassm
       real(8), intent(in) :: power(npin,npin,kd,nassm)
       real(8), intent(in) :: axial(kd)
@@ -415,7 +540,7 @@
       k2max(:)=0         ! 2D core max i, j, n
       k2min(:)=0         ! 2D core min i, j, n
 
-      write (*,'(/,1x,a)') 'Collapsing 3D edits to 2D'
+      write (*,'(/,1x,a,a)') 'Collapsing 3D edits to 2D - ', trim(label)
 
 !--- collapse to 2D
 

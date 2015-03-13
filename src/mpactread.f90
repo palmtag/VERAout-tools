@@ -16,6 +16,8 @@
 !             - read exposure values
 !  2015/03/06 - add additional scalar edits
 !             - added option to print single distributions with "d" command line arguments
+!  2015/03/13 - set fuel temperatures in guide tubes to zero
+!             - calculate averages in qtr-symmetry problems correctly
 !
 !-----------------------------------------------------------------------
       use  hdf5
@@ -32,6 +34,9 @@
       integer            :: ndim         ! temp variable
       integer            :: idim(10)     ! temp variable
       integer            :: nstate=0     ! statepoint number
+
+      integer            :: llpow       ! index for power array
+      integer            :: lltfu       ! index for fuel temperature
 
       logical            :: ifxst
       logical            :: ifdebug=.false. ! debug flag
@@ -55,6 +60,7 @@
       integer  :: npin                      ! pin data
 
       real(8)  :: xtemp                     ! temp value
+      real(8)  :: xave                      ! temp value
       real(8)  :: xkeff                     ! eigenvalue
       real(8)  :: xexpo                     ! exposure
       real(8)  :: xefpd                     ! exposure EFPD
@@ -66,7 +72,8 @@
       real(8)  :: rated_flow                ! rated power
 
       real(8), allocatable :: axial(:)      ! axial elevations
-      real(8), allocatable :: powertemp(:,:,:,:)
+      real(8), allocatable :: temp4d(:,:,:,:)
+      real(8), allocatable :: power(:,:,:,:)  ! 3d distribution
       real(8), allocatable :: tdist(:,:,:,:)  ! 3d distribution
       real(8), allocatable :: tdist2d(:,:,:)  ! 2d collapsed distribution
 
@@ -108,12 +115,14 @@
       state_tinlet(:)=0.0d0
       state_pinmax(:)=0.0d0
 
-      dist_label(1)='pin_fueltemps'
-      dist_label(2)='pin_moddens'
-      dist_label(3)='pin_modtemps'
-      dist_label(4)='pin_cladtemps'
-      dist_label(5)='pin_powers'
+      dist_label(1)='pin_powers'
+      dist_label(2)='pin_fueltemps'
+      dist_label(3)='pin_cladtemps'
+      dist_label(4)='pin_modtemps'
+      dist_label(5)='pin_moddens'
 
+      llpow=1       ! save location of power
+      lltfu=2       ! save location of fuel temperatures
 
 !----------------------------------------------------------------------
 !  Read in arguments from command line
@@ -133,6 +142,7 @@
 ! parse command line arguments
 
       idis=-1
+      dist_print(:)=.false.
 
       do i=1, iargs
         call get_command_argument(i,carg)
@@ -148,14 +158,19 @@
           idis=0
         elseif (carg.eq.'d1') then
           idis=1
+          dist_print(idis)=.true.
         elseif (carg.eq.'d2') then
           idis=2
+          dist_print(idis)=.true.
         elseif (carg.eq.'d3') then
           idis=3
+          dist_print(idis)=.true.
         elseif (carg.eq.'d4') then
           idis=4
+          dist_print(idis)=.true.
         elseif (carg.eq.'d5') then
           idis=5
+          dist_print(idis)=.true.
         else
           inputfile=carg
         endif
@@ -163,9 +178,6 @@
 
       if (idis.eq.-1) then   ! print all distributions
         dist_print(:)=.true.
-      else                  ! only print one distribution
-        dist_print(:)=.false.
-        if (idis.ge.1 .and. idis.le.maxdist) dist_print(idis)=.true.
       endif
 
       if (.not.if1d)  write (*,*) 'no 1D edits requested on command line'
@@ -498,42 +510,53 @@
 
           if (ifdebug) write (*,*) 'debug: allocating pin arrays'
 
-          allocate (powertemp(nassm, kd, npin, npin))
-          allocate (tdist    (npin, npin, kd, nassm))    ! distributions
-          allocate (tdist2d  (npin, npin, nassm))        ! 2D powers
+          allocate (temp4d(nassm, kd, npin, npin))
+          allocate (power    (npin, npin, kd, nassm))    ! save power
+          allocate (tdist    (npin, npin, kd, nassm))    ! 3D distributions
+          allocate (tdist2d  (npin, npin, nassm))        ! 2D distributions
         endif
 
-!-- Edit 3D distributions
+!-- Loop over distributions
 
         do idis=1, maxdist
 
-          if (.not.dist_print(idis)) cycle    ! skip this distribution
+          if (.not.dist_print(idis) .and. idis.ne.llpow) cycle    ! skip this distribution
 
           write (*,*)
 
           dataset=trim(group_name)//trim(dist_label(idis))
-          call hdf5_read_double(file_id, dataset, nassm, kd, npin, npin, powertemp)
+          call hdf5_read_double(file_id, dataset, nassm, kd, npin, npin, temp4d)
 
           do n=1, nassm
             do k=1, kd
               do j=1, npin
                 do i=1, npin
-                  tdist(i,j,k,n)=powertemp(n,k,j,i)
+                  tdist(i,j,k,n)=temp4d(n,k,j,i)
                 enddo
               enddo
             enddo
           enddo
 
-          call stat3d(dist_label(idis), npin,  kd, nassm, axial, tdist, xtemp)
-          if (dist_label(idis).eq.'pin_powers') then
+          if (idis.eq.llpow) then
+            power=tdist        ! save power - needed for mask
+          endif
+          if (.not.dist_print(idis)) cycle    ! skip if this was power
+
+          if (idis.eq.lltfu) then    ! apply mask to fuel temperatures
+            call masktfu(npin,  kd, nassm, power, tdist)
+          endif
+
+          call stat3d(dist_label(idis), npin,  kd, nassm, icore, jcore, mapcore, &
+                      axial, tdist, xave, xtemp)
+          if (idis.eq.llpow) then
             state_pinmax(nstate)=xtemp
           endif
 
           if (if2d .or. if2da) then
-            call collapse2d(npin, kd, nassm, axial, tdist, tdist2d)
+            call collapse2d(dist_label(idis), npin, kd, nassm, axial, tdist, tdist2d)
           endif
 
-          if (dist_label(idis).eq.'pin_powers') then    ! special edits just for power
+          if (idis.eq.llpow) then    ! special edits just for power
             call check_normalization(npin, kd, nassm, tdist, axial, icore, jcore, mapcore)
           endif
 
@@ -582,7 +605,8 @@
       if (allocated(tdist2d)) then  ! protect from missing statepoints
         deallocate (tdist2d)
         deallocate (tdist)
-        deallocate (powertemp)
+        deallocate (power)
+        deallocate (temp4d)
       endif
 
       deallocate (mapcore)
@@ -668,7 +692,7 @@
         write (*,*) 'WARNING: average of assemblies cannot be calculated because assemblies have different number of rods'
       else
         write (*,130) 'average', pp
-        if (abs(pp-1.0d0).gt.0.0001) write (0,*) '***** check normalization *****'
+!!      if (abs(pp-1.0d0).gt.0.0001) write (0,*) '***** check normalization *****'   ! msg only valid for pin powers
       endif
       write (*,130) 'maximum', pmax
       write (*,130) 'minimum', pmin
@@ -755,3 +779,40 @@
 
       return
       end subroutine check_normalization
+!=======================================================================
+!
+!  MPACT has non-zero values for fuel temperatures so zero the values
+!  out if the power is zero
+!
+!=======================================================================
+      subroutine masktfu (npin, kd, nassm, power, tdist)
+      implicit none
+      integer, intent(in) :: npin, kd, nassm
+      real(8), intent(in) :: power(npin,npin,kd,nassm)
+      real(8)             :: tdist(npin,npin,kd,nassm)
+
+!--- local
+
+      integer :: i, j, k, na
+      real(8) :: pp
+
+      write (*,'(/,1x,a)') 'Applying power mask to fuel temperature array'
+
+!--- apply mask
+
+      do na=1, nassm
+        do k=1, kd   ! loop over axial levels
+          do j=1, npin
+            do i=1, npin
+              pp=power(i,j,k,na)
+              if (pp.eq.0.0d0) then
+                tdist(i,j,k,na)=0.0d0
+              endif
+            enddo
+          enddo
+        enddo
+      enddo
+
+      return
+      end subroutine masktfu
+

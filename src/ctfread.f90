@@ -373,7 +373,7 @@
 
 !--- print overall statistics
 
-        call stat3d(dist_label(idis),  npin,  kd, nassm, axial, tdist, xtemp)
+        call stat3d_simple(dist_label(idis),  npin,  kd, nassm, axial, tdist, xtemp)
         write (*,*) '(coolant averages do not include flow area weighting)'
 
 !--- 3D edits
@@ -386,7 +386,7 @@
 
         if (if2d) then
           allocate (pow2d(npin, npin, nassm))
-          call collapse2d(npin, kd, nassm, axial, tdist, pow2d)
+          call collapse2d(dist_label(idis), npin, kd, nassm, axial, tdist, pow2d)
           call print_3D_pin_map('2D '//dist_label(idis), npin, 1,  nassm, pow2d)
           deallocate (pow2d)
         endif
