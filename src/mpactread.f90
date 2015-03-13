@@ -18,6 +18,7 @@
 !             - added option to print single distributions with "d" command line arguments
 !  2015/03/13 - set fuel temperatures in guide tubes to zero
 !             - calculate averages in qtr-symmetry problems correctly
+!             - add pin exposure edits
 !
 !-----------------------------------------------------------------------
       use  hdf5
@@ -81,7 +82,7 @@
       character(len=2), allocatable :: xlabel(:)  ! assembly map labels
       character(len=2), allocatable :: ylabel(:)  ! assembly map labels
 
-      integer, parameter :: maxdist=5    ! maximum number of distributions
+      integer, parameter :: maxdist=6    ! maximum number of distributions
       character(len=20) :: dist_label(maxdist)
       logical           :: dist_print(maxdist)   ! logical to print distribution
 
@@ -115,11 +116,12 @@
       state_tinlet(:)=0.0d0
       state_pinmax(:)=0.0d0
 
-      dist_label(1)='pin_powers'
+      dist_label(1)='pin_powers'     ! must come first
       dist_label(2)='pin_fueltemps'
       dist_label(3)='pin_cladtemps'
       dist_label(4)='pin_modtemps'
       dist_label(5)='pin_moddens'
+      dist_label(6)='pin_exposures'
 
       llpow=1       ! save location of power
       lltfu=2       ! save location of fuel temperatures
@@ -130,7 +132,7 @@
 
       iargs = command_argument_count()
       if (iargs.lt.1) then
-        write (*,*) 'usage:  mpactread.exe [hdf5_file] {1D/2D/2DA/3D} {d1/d2/d3/d4/d5}'
+        write (*,*) 'usage:  mpactread.exe [hdf5_file] {1D/2D/2DA/3D} {d1/d2/d3/d4/d5/d6}'
         write (*,*) 'possible distributions:'
         do idis=1, maxdist
           write (*,18) idis, trim(dist_label(idis))
@@ -170,6 +172,9 @@
           dist_print(idis)=.true.
         elseif (carg.eq.'d5') then
           idis=5
+          dist_print(idis)=.true.
+        elseif (carg.eq.'d6') then
+          idis=6
           dist_print(idis)=.true.
         else
           inputfile=carg
