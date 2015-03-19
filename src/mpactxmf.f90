@@ -36,6 +36,7 @@
       implicit none
 
       character(len=120):: filename      ! HDF File name
+      character(len=120):: filectf       ! HDF CTF File name
       character(len=120):: gridfile      ! HDF grid File name
       character(len=40) :: dataset       ! dataset name
 
@@ -78,6 +79,19 @@
       endif
 
       gridfile=filename(1:ll-3)//'.grid.h5'
+
+!--- look for corresponding CTF filename
+
+      filectf=' '
+      ll=len_trim(filename)
+      if (filename(ll-2:ll).eq.'.h5') filectf=filename(1:ll-3)//'.ctf.h5'
+      inquire (file=filectf,exist=ifxst)
+      if (ifxst) then
+         write (*,*) '  *** found ctf file ', trim(filectf)
+      else
+         write (*,*) '  *** NO ctf file found ', trim(filectf)
+         filectf=' '      ! reset if not found
+      endif
 
 !--- open HDF data file
 
@@ -141,7 +155,7 @@
 
 ! write xmf file
 
-        call write_xmf(npin, npin, naxial, nassm, nnrod, filename, gridfile, nstate, xexp)
+        call write_xmf(npin, npin, naxial, nassm, nnrod, filename, gridfile, filectf, nstate, xexp)
 
 ! check if the next state exists
 
@@ -662,12 +676,13 @@
 !  Subroutine to write XMF file
 !
 !=======================================================================
-      subroutine write_xmf(nx, ny, nz, nassm, nnrod, filename, gridname, nstate, xexp)
+      subroutine write_xmf(nx, ny, nz, nassm, nnrod, filename, gridname, filectf, nstate, xexp)
       implicit none
       integer, intent(in) :: nx, ny, nz, nassm, nnrod
       integer, intent(in) :: nstate    ! statepoint number
       real(8), intent(in) :: xexp      ! exposure
       character(len=*), intent(in) :: filename
+      character(len=*), intent(in) :: filectf
       character(len=*), intent(in) :: gridname
 
       character(len=12) :: state_name
@@ -679,12 +694,26 @@
       integer, parameter :: maxdist=6    ! maximum number of distributions
       character(len=20) :: dist_label(maxdist)
 
+      integer, parameter :: maxctf=10    ! maximum number of CTF distributions
+      character(len=40) :: ctf_label(maxctf)
+
       dist_label(1)='pin_powers'
       dist_label(2)='pin_fueltemps'
       dist_label(3)='pin_cladtemps'
       dist_label(4)='pin_modtemps'
       dist_label(5)='pin_moddens'
       dist_label(6)='pin_exposures'
+
+      ctf_label( 1)="Rod_Surface_Temp_NE_Quad [C]"
+      ctf_label( 2)="Rod_Surface_Temp_NW_Quad [C]"
+      ctf_label( 3)="Rod_Surface_Temp_SE_Quad [C]"
+      ctf_label( 4)="Rod_Surface_Temp_SW_Quad [C]"
+      ctf_label( 5)="Steaming_Rate_NE_Quad [kg_per_s]"
+      ctf_label( 6)="Steaming_Rate_NW_Quad [kg_per_s]"
+      ctf_label( 7)="Steaming_Rate_SE_Quad [kg_per_s]"
+      ctf_label( 8)="Steaming_Rate_SW_Quad [kg_per_s]"
+      ctf_label( 9)="pin_fueltemps [C]"
+      ctf_label(10)="pin_powers"     ! no units
 
       write (label_xmf,'(".",i0,".xmf")') nstate
 
@@ -757,7 +786,7 @@
 
       endif
 
-!  real pin data
+!  pin data
 
       call make_state_name(state_name, nstate)
 
@@ -771,7 +800,22 @@
 
       enddo
 
-!  close grid
+!--- CTF data
+
+      if (filectf.ne.' ') then
+         write (*,*) ' adding CTF data'
+         do idis=1, maxctf
+           write (io,80) trim(ctf_label(idis))
+           write (io,30) nx, ny, nz, nassm
+           write (io,10) trim(filectf),trim(state_name),trim(ctf_label(idis))
+           write (io,20) '       </DataItem>'
+           write (io,20) '     </Attribute>'
+         enddo
+      endif
+
+
+
+!--- close grid
 
       write (io,20) '  </Grid>'
 
