@@ -671,10 +671,20 @@
       character(len=*), intent(in) :: gridname
 
       character(len=12) :: state_name
-      character(len=20) :: label_power
       character(len=10) :: label_xmf
 
       integer :: io=10
+      integer :: idis
+
+      integer, parameter :: maxdist=6    ! maximum number of distributions
+      character(len=20) :: dist_label(maxdist)
+
+      dist_label(1)='pin_powers'
+      dist_label(2)='pin_fueltemps'
+      dist_label(3)='pin_cladtemps'
+      dist_label(4)='pin_modtemps'
+      dist_label(5)='pin_moddens'
+      dist_label(6)='pin_exposures'
 
       write (label_xmf,'(".",i0,".xmf")') nstate
 
@@ -749,18 +759,17 @@
 
 !  real pin data
 
-      label_power='pin_powers'
-
       call make_state_name(state_name, nstate)
 
-      write (io,80) trim(label_power)
-      write (io,30) nx, ny, nz, nassm
-      write (io,10) trim(filename),trim(state_name),'pin_powers'
-      write (io,20) '       </DataItem>'
-      write (io,20) '     </Attribute>'
+      do idis=1, maxdist
 
-!*** to add more distributions (e.g., exposure, crud, etc.) just make
-!*** more copies of the "Attribute" block above and point to right distribution name
+        write (io,80) trim(dist_label(idis))
+        write (io,30) nx, ny, nz, nassm
+        write (io,10) trim(filename),trim(state_name),trim(dist_label(idis))
+        write (io,20) '       </DataItem>'
+        write (io,20) '     </Attribute>'
+
+      enddo
 
 !  close grid
 

@@ -156,6 +156,8 @@
           if2da=.true.
         elseif (carg.eq.'1D' .or. carg.eq.'1d') then
           if1d=.true.
+        elseif (carg.eq.'-help' .or. carg.eq.'--help') then  ! add for Ben
+          write (*,*) 'run mpactread with no command line arguments for help'
         elseif (carg.eq.'d0') then
           idis=0
         elseif (carg.eq.'d1') then
@@ -189,6 +191,10 @@
       if (.not.if2d)  write (*,*) 'no 2D edits requested on command line'
       if (.not.if2da) write (*,*) 'no 2DA edits requested on command line'
       if (.not.if3d)  write (*,*) 'no 3D edits requested on command line'
+
+      if (inputfile.eq.' ') then
+        stop 'no input file specified on command line'
+      endif
 
 !--- initialize fortran interface
 
@@ -530,6 +536,13 @@
           write (*,*)
 
           dataset=trim(group_name)//trim(dist_label(idis))
+          call h5lexists_f(file_id, dataset, ifxst, ierror)
+          if (.not.ifxst) then
+            write (*,'(2a)') '>>', trim(dataset)
+            write (*,'(2a)') 'WARNING: dataset does not exist for this file'
+            cycle
+          endif
+
           call hdf5_read_double(file_id, dataset, nassm, kd, npin, npin, temp4d)
 
           do n=1, nassm
