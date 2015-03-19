@@ -37,6 +37,7 @@
       integer            :: nstate=0     ! statepoint number
 
       integer            :: llpow       ! index for power array
+      integer            :: llexp       ! index for exposure array
       integer            :: lltfu       ! index for fuel temperature
 
       logical            :: ifxst
@@ -94,7 +95,8 @@
       real(8)  :: state_flow (maxstate)
       real(8)  :: state_power(maxstate)
       real(8)  :: state_tinlet(maxstate)
-      real(8)  :: state_pinmax(maxstate)
+      real(8)  :: state_3exp(maxstate)
+      real(8)  :: state_3pin(maxstate)
 
 ! command line flags
 
@@ -114,7 +116,8 @@
       state_flow (:)=0.0d0
       state_power(:)=0.0d0
       state_tinlet(:)=0.0d0
-      state_pinmax(:)=0.0d0
+      state_3exp(:)=0.0d0
+      state_3pin(:)=0.0d0
 
       dist_label(1)='pin_powers'     ! must come first
       dist_label(2)='pin_fueltemps'
@@ -125,6 +128,7 @@
 
       llpow=1       ! save location of power
       lltfu=2       ! save location of fuel temperatures
+      llexp=6       ! save location of exposures
 
 !----------------------------------------------------------------------
 !  Read in arguments from command line
@@ -567,7 +571,10 @@
           call stat3d(dist_label(idis), npin,  kd, nassm, icore, jcore, mapcore, &
                       axial, tdist, xave, xtemp)
           if (idis.eq.llpow) then
-            state_pinmax(nstate)=xtemp
+            state_3pin(nstate)=xtemp
+          endif
+          if (idis.eq.llexp) then
+            state_3exp(nstate)=xtemp
           endif
 
           if (if2d .or. if2da) then
@@ -608,15 +615,15 @@
       write (*,110)
       do n=1, nstate
         write (*,120) n, state_xexpo(n), state_xefpd(n), state_xkeff(n), &
-               state_boron(n), state_pinmax(n), state_flow(n), &
+               state_boron(n), state_3pin(n), state_3exp(n), state_flow(n), &
                state_power(n), state_tinlet(n)
       enddo
   110 format (/,'==================================',&
               /,'       Statepoint Summary', &
               /,'==================================',&
-              /,'   N   exposure  exposure  eigenvalue   boron     pinmax     flow     power    tinlet')
+              /,'   N   exposure  exposure  eigenvalue   boron     3PIN       3EXP      flow     power    tinlet')
 
-  120 format (i4, f10.4, f10.2, f12.6, f10.2, 4f10.4)
+  120 format (i4, f10.4, f10.2, f12.6, f10.2, 5f10.4)
 
 ! deallocate memory and stop
 
