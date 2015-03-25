@@ -672,8 +672,8 @@
   150 format (/,'==================================',&
               /,'       Timing Summary', &
               /,'==================================',&
-              /,'   N   exposure  exposure    outers     time (sec)')
-  160 format (i4, f10.4, f10.2, i8, f10.4)
+              /,'   N   exposure  exposure  outers   time (sec)')
+  160 format (i4, f10.4, f10.2, i8, 3x, f12.3)
 
 !--- finished
 
