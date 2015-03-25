@@ -19,6 +19,7 @@
 !  2015/03/13 - set fuel temperatures in guide tubes to zero
 !             - calculate averages in qtr-symmetry problems correctly
 !             - add pin exposure edits
+!  2015/03/25 - add outer iterations count and time edits
 !
 !-----------------------------------------------------------------------
       use  hdf5
@@ -68,7 +69,6 @@
       real(8)  :: xefpd                     ! exposure EFPD
       real(8)  :: xflow                     !
       real(8)  :: xpow                      !
-      real(8)  :: tinlet                    !
       real(8)  :: boron                     !
       real(8)  :: rated_power               ! rated flow
       real(8)  :: rated_flow                ! rated power
@@ -97,6 +97,8 @@
       real(8)  :: state_tinlet(maxstate)
       real(8)  :: state_3exp(maxstate)
       real(8)  :: state_3pin(maxstate)
+      integer  :: state_nout(maxstate)
+      real(8)  :: state_time(maxstate)
 
 ! command line flags
 
@@ -104,6 +106,7 @@
       logical  :: if2d   =.false.           ! turn on 2D edits
       logical  :: if2da  =.false.           ! turn on 2D assembly edits
       logical  :: if1d   =.false.           ! turn on 1D edits
+      logical  :: iftime =.false.           ! timing summary
 
 !  initialize
 
@@ -115,9 +118,11 @@
       state_boron(:)=0.0d0
       state_flow (:)=0.0d0
       state_power(:)=0.0d0
-      state_tinlet(:)=0.0d0
+      state_tinlet(:)=-1.0d0
       state_3exp(:)=0.0d0
       state_3pin(:)=0.0d0
+      state_nout(:)=0
+      state_time(:)=-1.0d0
 
       dist_label(1)='pin_powers'     ! must come first
       dist_label(2)='pin_fueltemps'
@@ -136,8 +141,13 @@
 
       iargs = command_argument_count()
       if (iargs.lt.1) then
-        write (*,*) 'usage:  mpactread.exe [hdf5_file] {1D/2D/2DA/3D} {d1/d2/d3/d4/d5/d6}'
-        write (*,*) 'possible distributions:'
+        write (*,*) 'usage:  mpactread.exe [hdf5_file] {1D/2D/2DA/3D} {time} {d1/d2/d3/d4/d5/d6}'
+        write (*,*) '  1D     print 1D edits'
+        write (*,*) '  2D     print 2D pin edits'
+        write (*,*) '  2DA    print 2D assembly edits'
+        write (*,*) '  3D     print 3D pin edits'
+        write (*,*) '  time   print timing summary'
+        write (*,*) 'distribution selections:'
         do idis=1, maxdist
           write (*,18) idis, trim(dist_label(idis))
         enddo
@@ -160,6 +170,8 @@
           if2da=.true.
         elseif (carg.eq.'1D' .or. carg.eq.'1d') then
           if1d=.true.
+        elseif (carg.eq.'time') then
+          iftime=.true.
         elseif (carg.eq.'-help' .or. carg.eq.'--help') then  ! add for Ben
           write (*,*) 'run mpactread with no command line arguments for help'
         elseif (carg.eq.'d0') then
@@ -441,7 +453,6 @@
         boron=-1.0d0
         xflow=-1.0d0
         xpow =-1.0d0
-        tinlet=-1.0d0
 
         dataset=trim(group_name)//'exposure'
         call hdf5_read_double(file_id, dataset, xexpo)
@@ -473,7 +484,19 @@
         dataset=trim(group_name)//'tinlet'
         call h5lexists_f(file_id, dataset, ifxst, ierror)
         if (ifxst) then
-          call hdf5_read_double(file_id, dataset, tinlet)
+          call hdf5_read_double(file_id, dataset, state_tinlet(nstate))
+        endif
+
+        dataset=trim(group_name)//'outer_timer'
+        call h5lexists_f(file_id, dataset, ifxst, ierror)
+        if (ifxst) then
+          call hdf5_read_double(file_id, dataset, state_time(nstate))
+        endif
+
+        dataset=trim(group_name)//'outers'
+        call h5lexists_f(file_id, dataset, ifxst, ierror)
+        if (ifxst) then
+          call hdf5_read_integer(file_id, dataset, state_nout(nstate))
         endif
 
         if (ifdebug) write (*,*) 'debug: keff = ', xkeff
@@ -488,7 +511,6 @@
         state_boron(nstate)=boron
         state_flow (nstate)=xflow
         state_power(nstate)=xpow
-        state_tinlet(nstate)=tinlet
 
         write (*,'(a, f10.4,a)') ' exposure =', xexpo,' GWD/MT'
         write (*,'(a, f10.4,a)') ' exposure =', xefpd,' EFPD'
@@ -609,9 +631,23 @@
 
       call h5fclose_f(file_id, ierror)
 
-! print summary
+!--- deallocate distributins
+
+      if (allocated(tdist2d)) then  ! protect from missing statepoints
+        deallocate (tdist2d)
+        deallocate (tdist)
+        deallocate (power)
+        deallocate (temp4d)
+      endif
+
+      deallocate (mapcore)
+      deallocate (xlabel,ylabel)
+      deallocate (axial)
 
       nstate=nstate-1   ! decrease due to statepoint check
+
+!--- print summary
+
       write (*,110)
       do n=1, nstate
         write (*,120) n, state_xexpo(n), state_xefpd(n), state_xkeff(n), &
@@ -625,18 +661,21 @@
 
   120 format (i4, f10.4, f10.2, f12.6, f10.2, 5f10.4)
 
-! deallocate memory and stop
+!--- timing summary
 
-      if (allocated(tdist2d)) then  ! protect from missing statepoints
-        deallocate (tdist2d)
-        deallocate (tdist)
-        deallocate (power)
-        deallocate (temp4d)
+      if (iftime) then
+        write (*,150)
+        do n=1, nstate
+          write (*,160) n, state_xexpo(n), state_xefpd(n), state_nout(n), state_time(n)
+        enddo
       endif
+  150 format (/,'==================================',&
+              /,'       Timing Summary', &
+              /,'==================================',&
+              /,'   N   exposure  exposure    outers     time (sec)')
+  160 format (i4, f10.4, f10.2, i8, f10.4)
 
-      deallocate (mapcore)
-      deallocate (xlabel,ylabel)
-      deallocate (axial)
+!--- finished
 
       write (*,'(/,a)') 'done'
 
