@@ -141,19 +141,20 @@
 
       iargs = command_argument_count()
       if (iargs.lt.1) then
-        write (*,*) 'usage:  mpactread.exe [hdf5_file] {1D/2D/2DA/3D} {time} {d1/d2/d3/d4/d5/d6}'
+        write (*,*) 'usage:  mpactread.exe [hdf5_file] {1D/2D/2DA/3D} {time} {-dN}'
         write (*,*) '  1D     print 1D edits'
         write (*,*) '  2D     print 2D pin edits'
         write (*,*) '  2DA    print 2D assembly edits'
         write (*,*) '  3D     print 3D pin edits'
         write (*,*) '  time   print timing summary'
-        write (*,*) 'distribution selections:'
+        write (*,*)
+        write (*,*) 'distribution selections for -dN option:'
         do idis=1, maxdist
           write (*,18) idis, trim(dist_label(idis))
         enddo
         stop
       endif
-   18 format ('   d',i1,2x,a)
+   18 format ('   -d',i1,5x,a)
 
 ! parse command line arguments
 
@@ -174,32 +175,15 @@
           iftime=.true.
         elseif (carg.eq.'-help' .or. carg.eq.'--help') then  ! add for Ben
           write (*,*) 'run mpactread with no command line arguments for help'
-        elseif (carg.eq.'d0') then
-          idis=0
-        elseif (carg.eq.'d1') then
-          idis=1
-          dist_print(idis)=.true.
-        elseif (carg.eq.'d2') then
-          idis=2
-          dist_print(idis)=.true.
-        elseif (carg.eq.'d3') then
-          idis=3
-          dist_print(idis)=.true.
-        elseif (carg.eq.'d4') then
-          idis=4
-          dist_print(idis)=.true.
-        elseif (carg.eq.'d5') then
-          idis=5
-          dist_print(idis)=.true.
-        elseif (carg.eq.'d6') then
-          idis=6
-          dist_print(idis)=.true.
+        elseif (carg(1:2).eq.'-d') then
+          read (carg(3:),*) idis
+          if (idis.ge.1 .and. idis.le.maxdist) dist_print(idis)=.true.
         else
           inputfile=carg
         endif
       enddo
 
-      if (idis.eq.-1) then   ! print all distributions
+      if (idis.eq.-1) then   ! print all distributions by default
         dist_print(:)=.true.
       endif
 
@@ -673,7 +657,7 @@
               /,'       Timing Summary', &
               /,'==================================',&
               /,'   N   exposure  exposure  outers   time (sec)')
-  160 format (i4, f10.4, f10.2, i8, 3x, f12.3)
+  160 format (i4, f10.4, f10.2, i8, 1x, f12.3)
 
 !--- finished
 

@@ -20,6 +20,7 @@
 !  2014/10/10 - Added steaming rate and rod surface temperature arrays
 !  2015/01/09 - Add multiple statepoint support
 !  2015/03/06 - Major restructure to allow edits by distribution
+!  2015/04/03 - Add DNB edits
 !
 !  There are still some issues that need to be worked out:
 !    * There are some cases that have a very small power in non-fuel regions
@@ -41,9 +42,9 @@
       integer            :: ndim            ! number of dimensions in HDF file
       integer            :: idim(10)        ! value of dimensions on HDF file
       integer            :: nstate=0        ! statepoint number
-      integer            :: ltcool
-      integer            :: ltfuel
-      integer            :: lpower
+      integer            :: lltcool
+      integer            :: lltfu
+      integer            :: llpow
 
       real(8)            :: zsum
       real(8)            :: xtemp
@@ -56,7 +57,7 @@
       character(len=22)  :: state_name      ! HDF group name for STATE
       character(len=22)  :: group_name      ! HDF group name for CORE
 
-      integer, parameter :: maxdist=12
+      integer, parameter :: maxdist=17
       character(len=40)  :: dist_label(maxdist)
       logical            :: dist_print(maxdist)
       logical            :: dist_chan (maxdist)   ! channel array flag (i.e. not pin array)
@@ -105,15 +106,20 @@
       dist_label( 8)="Steaming_Rate_SW_Quad [kg_per_s]"
       dist_label( 9)="channel_liquid_temps [C]"
       dist_label(10)="pin_fueltemps [C]"
-      dist_label(11)="pin_powers [W per cm]"
-      dist_label(12)="pin_powers"     ! no units
+      dist_label(11)="pin_powers"     ! no units
+      dist_label(12)="equilibrium_quality"
+      dist_label(13)="liquid_density"
+      dist_label(14)="mixture_massflux"
+      dist_label(15)="pin_min_dnbr"
+      dist_label(16)="pressure"
+      dist_label(17)="vapor_void"
 
-      dist_chan(:)=.false.   ! pin arrays
+      dist_chan(:)=.false.   ! mark as pin arrays (not channel arrays)
       dist_chan(9)=.true.    ! mark as channel array
 
-      ltcool=9    ! save location of tcool
-      ltfuel=10   ! save location of tfuel
-      lpower=11   ! save location of power
+      lltcool=9    ! save location of tcool
+      lltfu=10     ! save location of tfuel
+      llpow=11     ! save location of power
 
 !----------------------------------------------------------------------
 !  Read in arguments from command line
@@ -121,17 +127,17 @@
 
       iargs = command_argument_count()
       if (iargs.lt.1) then
-        write (*,*) 'usage:  ctfread.exe [hdf5_file] {1D/2D/3D/tfuel/exit} {dN}'
+        write (*,*) 'usage:  ctfread.exe [hdf5_file] {1D/2D/3D/tfuel/exit} {-dN}'
 
         write (*,*)
-        write (*,*) 'list of distributions for dN option:'
+        write (*,*) 'list of distributions for -dN option:'
         do idis=1, maxdist
           write (*,18) idis, trim(dist_label(idis))
         enddo
 
         stop
       endif
-   18 format ('   d',i0,2x,a)
+   18 format ('   -d',i0,2x,a)
 
 ! parse command line arguments
 
@@ -149,50 +155,22 @@
           iftfuel=.true.
         elseif (carg.eq.'exit') then
           ifexit=.true.
-        elseif (carg.eq.'d0') then
-          idis=0
-        elseif (carg.eq.'d1') then   ! this is sloppy - needs to be generalized
-          idis=1
-        elseif (carg.eq.'d2') then
-          idis=2
-        elseif (carg.eq.'d3') then
-          idis=3
-        elseif (carg.eq.'d4') then
-          idis=4
-        elseif (carg.eq.'d5') then
-          idis=5
-        elseif (carg.eq.'d6') then
-          idis=6
-        elseif (carg.eq.'d7') then
-          idis=7
-        elseif (carg.eq.'d8') then
-          idis=8
-        elseif (carg.eq.'d9') then
-          idis=9
-        elseif (carg.eq.'d10') then
-          idis=10
-        elseif (carg.eq.'d11') then   ! set both power edits
-          idis=11
-          idis=12
-        elseif (carg.eq.'d12') then
-          idis=11
-          idis=12
+        elseif (carg(1:2).eq.'-d') then
+          read (carg(3:),*) idis
+          if (idis.ge.1 .and. idis.le.maxdist) dist_print(idis)=.true.
         else
           filename=carg
         endif
       enddo
 
-      if (idis.eq.-1) then   ! print all distributions
+      if (idis.eq.-1) then   ! print all distributions if none chosen
         dist_print(:)=.true.
-      else                   ! only print one distribution
-        dist_print(:)=.false.
-        if (idis.gt.0 .and. idis.le.maxdist) dist_print(idis)=.true.
       endif
 
       if (iftfuel) then       ! turn on options needed for fuel temp fit
-        dist_print(ltcool)=.true.   ! turn on coolant temp
-        dist_print(ltfuel)=.true.   ! turn on fuel temp
-        dist_print(lpower)=.true.   ! turn on power
+        dist_print(lltcool)=.true.   ! turn on coolant temp
+        dist_print(lltfu)=.true.     ! turn on fuel temp
+        dist_print(llpow)=.true.     ! turn on power
       endif
 
 !--- initialize HDF fortran interface
@@ -292,6 +270,20 @@
 
       npin_save=npin   ! save value for allocations below
 
+!--- special check for old power label with units
+
+      if (llpow.gt.0) then
+        dataset='/STATE_0001/'//dist_label(llpow)
+        call h5lexists_f(file_id, dataset, ifxst, ierror)
+        if (.not.ifxst) then
+          write (*,*) '*** Power label not found, checking old label ****'
+          dist_label(llpow)="pin_powers [W per cm]"
+          dataset='/STATE_0001/'//dist_label(llpow)
+          call h5lexists_f(file_id, dataset, ifxst, ierror)
+          if (.not.ifxst) stop 'no power label found'
+        endif
+      endif
+
 !----------------------------------------------------
 !  Read STATE group
 !----------------------------------------------------
@@ -359,14 +351,14 @@
 !--- calculate pincell-based coolant temperatures from channel distributions
 
         if (iftfuel) then
-          if (idis.eq.ltcool) then
+          if (idis.eq.lltcool) then
             if (.not.dist_chan(idis)) stop 'failed sanity check'
             call pincell_coolant(nchan, npin_save, kd, nassm, charea, tdist, tcool)
           endif
-          if (idis.eq.lpower) then
+          if (idis.eq.llpow) then
             power=tdist
           endif
-          if (idis.eq.ltfuel) then
+          if (idis.eq.lltfu) then
             tfuel=tdist
           endif
         endif
