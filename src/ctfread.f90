@@ -21,6 +21,7 @@
 !  2015/01/09 - Add multiple statepoint support
 !  2015/03/06 - Major restructure to allow edits by distribution
 !  2015/04/03 - Add DNB edits
+!  2015/04/06 - Add core symmetry and core map
 !
 !  There are still some issues that need to be worked out:
 !    * There are some cases that have a very small power in non-fuel regions
@@ -35,7 +36,7 @@
       character(len=80)  :: filename
       character(len=80)  :: carg            ! command line argument
       integer            :: iargs           ! number of command line arguments
-      integer            :: i
+      integer            :: i, j
       integer            :: idis
       integer            :: ierror
       integer            :: itype
@@ -49,8 +50,7 @@
       real(8)            :: zsum
       real(8)            :: xtemp
 
-      logical            :: ifxst           ! flag if file exists
-      logical            :: ifsteam         ! flag if steaming rate data is present
+      logical            :: ifxst           ! flag if file or dataset exists
       logical            :: ifdebug=.false. ! debug flag
 
       character(len=80)  :: dataset         ! HDF dataset name
@@ -66,12 +66,15 @@
 
 ! input data
 
+      integer  :: isym                      ! core symmetry
+      integer  :: icore, jcore              ! size of core map
       integer  :: kd                        ! number of axial levels in pin maps
       integer  :: nassm                     ! number of assemblies in pin maps
       integer  :: npin                      ! number of pins across one side of assembly
       integer  :: npin_save                 ! number of pins across one side of assembly
       integer  :: nchan                     ! number of channels across one side of assembly
 
+      integer, allocatable :: mapcore(:,:)  ! core map (icore,jcore)
       real(8), allocatable :: axial(:)      ! axial elevations
 
       real(8), allocatable :: temp1(:,:,:,:)
@@ -96,17 +99,17 @@
 
       filename=' '
 
-      dist_label( 1)="Rod_Surface_Temp_NE_Quad [C]"
-      dist_label( 2)="Rod_Surface_Temp_NW_Quad [C]"
-      dist_label( 3)="Rod_Surface_Temp_SE_Quad [C]"
-      dist_label( 4)="Rod_Surface_Temp_SW_Quad [C]"
-      dist_label( 5)="Steaming_Rate_NE_Quad [kg_per_s]"
-      dist_label( 6)="Steaming_Rate_NW_Quad [kg_per_s]"
-      dist_label( 7)="Steaming_Rate_SE_Quad [kg_per_s]"
-      dist_label( 8)="Steaming_Rate_SW_Quad [kg_per_s]"
-      dist_label( 9)="channel_liquid_temps [C]"
-      dist_label(10)="pin_fueltemps [C]"
-      dist_label(11)="pin_powers"     ! no units
+      dist_label( 1)="pin_powers"     ! no units
+      dist_label( 2)="Rod_Surface_Temp_NE_Quad [C]"
+      dist_label( 3)="Rod_Surface_Temp_NW_Quad [C]"
+      dist_label( 4)="Rod_Surface_Temp_SE_Quad [C]"
+      dist_label( 5)="Rod_Surface_Temp_SW_Quad [C]"
+      dist_label( 6)="Steaming_Rate_NE_Quad [kg_per_s]"
+      dist_label( 7)="Steaming_Rate_NW_Quad [kg_per_s]"
+      dist_label( 8)="Steaming_Rate_SE_Quad [kg_per_s]"
+      dist_label( 9)="Steaming_Rate_SW_Quad [kg_per_s]"
+      dist_label(10)="channel_liquid_temps [C]"
+      dist_label(11)="pin_fueltemps [C]"
       dist_label(12)="equilibrium_quality"
       dist_label(13)="liquid_density"
       dist_label(14)="mixture_massflux"
@@ -115,11 +118,15 @@
       dist_label(17)="vapor_void"
 
       dist_chan(:)=.false.   ! mark as pin arrays (not channel arrays)
-      dist_chan(9)=.true.    ! mark as channel array
+      dist_chan(10)=.true.   ! mark as channel array
+      dist_chan(13)=.true.   ! mark as channel array
+      dist_chan(14)=.true.   ! mark as channel array
+      dist_chan(16)=.true.   ! mark as channel array
+      dist_chan(17)=.true.   ! mark as channel array
 
+      llpow=1      ! save location of power
       lltcool=9    ! save location of tcool
       lltfu=10     ! save location of tfuel
-      llpow=11     ! save location of power
 
 !----------------------------------------------------------------------
 !  Read in arguments from command line
@@ -155,6 +162,8 @@
           iftfuel=.true.
         elseif (carg.eq.'exit') then
           ifexit=.true.
+        elseif (carg.eq.'debug') then
+          ifdebug=.true.
         elseif (carg(1:2).eq.'-d') then
           read (carg(3:),*) idis
           if (idis.ge.1 .and. idis.le.maxdist) dist_print(idis)=.true.
@@ -172,6 +181,7 @@
         dist_print(lltfu)=.true.     ! turn on fuel temp
         dist_print(llpow)=.true.     ! turn on power
       endif
+
 
 !--- initialize HDF fortran interface
 
@@ -201,6 +211,40 @@
         group_name=' '
         write (*,*) 'CORE group not found on HDF file - is this an old file?'
         stop 'CORE group not found on HDF file'
+      endif
+
+!--- symmetry
+
+      dataset=trim(group_name)//'core_sym'
+      call h5lexists_f(file_id, dataset, ifxst, ierror)
+      if (ifxst) then
+        call hdf5_read_integer(file_id, dataset, isym)
+        write (*,*) 'core symmetry ', isym
+      else
+        isym=-1
+      endif
+
+!--- core map
+
+      icore=0
+      jcore=0
+
+      dataset=trim(group_name)//'core_map'
+      call h5lexists_f(file_id, dataset, ifxst, ierror)
+      if (ifxst) then
+        call h5info(file_id, dataset, itype, ndim, idim)
+        if (ndim.ne.2) stop 'invalid dimensions in core_map'
+        icore=idim(1)
+        jcore=idim(2)
+        if (ifdebug) write (*,*) 'debug: icore = ', icore
+        if (ifdebug) write (*,*) 'debug: jcore = ', jcore
+        allocate (mapcore(icore,jcore))
+        call hdf5_read_integer(file_id, dataset, icore, jcore, mapcore)
+
+        write (*,'(/,a)') ' Core Map:'
+        do j=1, jcore
+           write (*,'(2x,20i3)') (mapcore(i,j),i=1,icore)
+        enddo
       endif
 
 !--- read axial heights
@@ -256,7 +300,7 @@
 
 !  check channel areas
 
-        call check_channel(nchan, kd, nassm, charea, axial)
+      if (ifdebug) call check_channel(nchan, kd, nassm, charea, axial)
 
 !--- allocate other arrays
 
@@ -319,10 +363,9 @@
         if (.not.dist_print(idis)) cycle   ! skip distribution
 
         dataset=trim(state_name)//dist_label(idis)
-        call h5lexists_f(file_id, dataset, ifsteam, ierror)
-        if (.not.ifsteam) then
-          write (*,'(2a)') '>>', trim(dataset)
-          write (*,'(2a)') 'WARNING: dataset does not exist for this file'
+        call h5lexists_f(file_id, dataset, ifxst, ierror)
+        if (.not.ifxst) then
+          write (*,'(2a)') 'WARNING: dataset does not exist for this file ', trim(dataset)
           cycle
         endif
 
@@ -343,7 +386,7 @@
 
 !--- check data
 
-        if (dist_label(idis)(1:5).ne.'Steam') then    !*** don't check steam
+        if (idis.eq.llpow .or. idis.eq.lltfu) then
           call checkdata (dist_label(idis), npin, kd, nassm, tdist)
         endif
 
