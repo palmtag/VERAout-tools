@@ -72,6 +72,7 @@
       real(8)  :: boron                     !
       real(8)  :: rated_power               ! rated flow
       real(8)  :: rated_flow                ! rated power
+      real(8)  :: apitch                    ! assembly pitch
 
       real(8), allocatable :: axial(:)      ! axial elevations
       real(8), allocatable :: temp4d(:,:,:,:)
@@ -171,6 +172,8 @@
           if2da=.true.
         elseif (carg.eq.'1D' .or. carg.eq.'1d') then
           if1d=.true.
+        elseif (carg.eq.'debug') then
+          ifdebug=.true.
         elseif (carg.eq.'time') then
           iftime=.true.
         elseif (carg.eq.'-help' .or. carg.eq.'--help') then  ! add for Ben
@@ -223,14 +226,6 @@
       xexpo=-100.0d0
       iver=-100
 
-!*** top level eigenvalue should not be here, it is a mistake
-      dataset='keff'
-      call h5lexists_f(file_id, dataset, ifxst, ierror)
-      if (ifxst) then
-        call hdf5_read_double(file_id, dataset, xkeff)  ! *** should not be here
-        write (*,*) 'warning: found top level keff = ', xkeff
-      endif
-
 ! version
 
       dataset='veraout_version'
@@ -258,6 +253,10 @@
       icore=0           ! number of assemblies across
       jcore=0           ! number of assemblies across
 
+      apitch=21.5d0     ! default value
+      rated_power=0.0d0 ! default value
+      rated_flow =0.0d0 ! default value
+
 ! check of CORE group exists (group may not exist on old MPACT files and all data will be in root)
 
       group_name='/CORE/'
@@ -267,15 +266,22 @@
         write (*,*) 'CORE group not found - is this an old MPACT file?'
       endif
 
-!! no need to open group on read???
+!--- assembly pitch
+
+      dataset=trim(group_name)//'apitch'
+      call h5lexists_f(file_id, dataset, ifxst, ierror)
+      if (ifxst) then
+        call hdf5_read_double(file_id, dataset, apitch)
+      else
+        write (*,*) '**** assembly pitch is missing from file ****'
+      endif
+
+!--- symmetry
 
       dataset=trim(group_name)//'core_sym'
       call hdf5_read_integer(file_id, dataset, isym)
 
 !--- rated power and flow
-
-      rated_power=0.0d0   ! default
-      rated_flow =0.0d0   ! default
 
       dataset=trim(group_name)//'rated_power'
       call h5lexists_f(file_id, dataset, ifxst, ierror)
@@ -294,9 +300,11 @@
       endif
 
       write (*,*)
-      write (*,'(a,i2)')    ' core symmetry  isym  = ', isym
-      write (*,'(a,f12.4)') ' rated power ', rated_power
-      write (*,'(a,f12.4)') ' rated flow  ', rated_flow
+      write (*,'(a,i2)') ' core symmetry  isym  = ', isym
+      write (*,30)       'rated power    ', rated_power,' MW'
+      write (*,30)       'rated flow     ', rated_flow
+      write (*,30)       'assembly pitch ', apitch,' cm'
+  30  format (1x,a,f12.4,a)
 
 !--- core map
 
@@ -381,14 +389,6 @@
       do j=1, jcore
         write (ylabel(j),'(i2.2)') j
       enddo
-
-!--- close group (if opened)
-
-!!    if (group_name.ne.' ') then
-!!      call h5gclose_f (group_id, ierror)
-!!      if (ierror.ne.0) stop 'error closing group'
-!!    endif
-
 
 !---------------------
 !  Read STATE groups
