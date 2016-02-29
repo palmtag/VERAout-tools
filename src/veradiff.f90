@@ -3,7 +3,7 @@
 !
 !  Program to compare two VERA HDF output file and print summary
 !
-!  Copyright (c) 2014 Core Physics, Inc.
+!  Copyright (c) 2014-2016 Core Physics, Inc.
 !
 !  Distributed under the MIT license.
 !  See the LICENSE file in the main directory for details.
@@ -22,7 +22,7 @@
 !  2014/04/26 - add comparison for multiple statepoints - see #3164
 !  2014/11/01 - added pin power comparisons             - see #3430
 !  2014/12/05 - added pin power tolerance               - see #3430
-!
+!  2016/02/28 - add statepoint summary
 !
 !--------------------------------------------------------------------------------
       use hdf5
@@ -34,11 +34,12 @@
       integer(hid_t)     :: file_id1, file_id2  ! HDF file id's
       integer            :: ierror
       integer            :: nfail            ! number of diff failures
+      integer            :: n
       integer            :: nstate           ! statepoint number
 
       logical            :: ifxst
 
-      character(len=10) :: group_name
+      real(8), allocatable :: summary(:,:)
 
       ierror=0
       fname1=' '
@@ -65,7 +66,6 @@
       if (.not.ifxst) then
         write (*,*) 'ERROR: input file ',trim(fname1),' does not exist'
         nfail=nfail+1
-        goto 900
       endif
 
       write (*,'(1x,2a)') 'reading h5 file: ', trim(fname2)
@@ -73,8 +73,9 @@
       if (.not.ifxst) then
         write (*,*) 'ERROR: input file ',trim(fname2),' does not exist'
         nfail=nfail+1
-        goto 900
       endif
+
+      if (nfail.gt.0) goto 900
 
 !--------------------------------------------------------------------------------
 ! Initialize HDF and open files
@@ -102,27 +103,30 @@
         goto 900
       endif
 
-!--- check if "STATE_0001" exists on file.  If so, this is a new file
+!--- count number of statepoints
 
-      group_name='STATE_0001'
-      call h5lexists_f(file_id1, group_name, ifxst, ierror)
-      if (ifxst) then
-        nstate=1
-      else
-        nstate=0    ! old file without STATE groups
+      call countstates(file_id1, nstate)
+      if (nstate.eq.0) nfail=nfail+1
+
+      call countstates(file_id2, n)
+      if (n.eq.0) nfail=nfail+1
+
+      if (nstate.ne.n) then
+        write (*,*) 'Number of statepoints on file 1 = ', nstate
+        write (*,*) 'Number of statepoints on file 2 = ', n
+        write (*,'(a)') 'ERROR: Number of statepoints does not match'
+        nfail=nfail+1
       endif
+
+      if (nfail.gt.0) goto 900
+
+      allocate (summary(7,nstate))
+      summary=0.0d0
 
 !--- loop over all statepoints and do comparisons
 
-      do
-        call readstate(file_id1, file_id2, nstate, nfail)
-        if (nstate.eq.0) exit   ! old files only have one statepoint
-
-        nstate=nstate+1
-        write (group_name(7:10),'(i4.4)') nstate
-        call h5lexists_f(file_id1, group_name, ifxst, ierror)
-        if (.not.ifxst) exit
-
+      do n=1, nstate
+        call readstate(file_id1, file_id2, n, nfail, summary(1,n))
       enddo
 
 !--------------------------------------------------------------------------------
@@ -136,6 +140,21 @@
 !--------------------------------------------------------------------------------
 
   900 continue
+
+      if (nstate.gt.1) then
+        write (*,122)
+        do n=1, nstate
+          write (*,55) n, summary(:,n)
+        enddo
+      endif
+  122 format ( &
+          /,'  ==================================================================', &
+          /,'                         Statepoint Summary', &
+          /,'  ==================================================================', &
+          /,'     N     exp     EFPD    keff1     keff2      pcm   max%    rms%')
+   55 format (2x,i4, f9.4, f8.2, 2f10.6, f8.1, 2f8.4)
+
+      deallocate (summary)
 
       if (nfail.gt.0) then
         write (*,'(/,a)') 'Overall FAIL'
@@ -151,7 +170,7 @@
 !  Subroutine to read a single statepoint from HDF file
 !
 !=======================================================================
-      subroutine readstate(file_id1, file_id2, nstate, nfail)
+      subroutine readstate(file_id1, file_id2, nstate, nfail, summary)
       use hdf5
       use mod_hdftools, only : hdf5_read_double
       implicit none
@@ -159,6 +178,7 @@
       integer(hid_t), intent(in) :: file_id1, file_id2
       integer,        intent(in) :: nstate
       integer                    :: nfail
+      real(8)                    :: summary(7)    ! summary output
 
 !--- local variables
 
@@ -175,7 +195,10 @@
       real(8)            :: xkdiff
       real(8)            :: xktol=10.0d0   ! eigenvalue tolerance (pcm)
 
+      real(8)            :: xexpo          ! exposure
+      real(8)            :: xefpd          ! exposure in EFPD
       real(8)            :: xmax           ! max pin difference (%)
+      real(8)            :: xrms           ! RMS pin difference (%)
       real(8)            :: pintol=0.5d0   ! pin power tolerance (%)
 
       character(len=80)  :: dataset
@@ -192,12 +215,23 @@
 
       write (*,*)
 
-      if (nstate.eq.0) then
-        statename=' '
-      else
-        statename='STATE_0000/'
-        write (statename(7:10),'(i4.4)') nstate
-      endif
+      statename='STATE_0000/'
+      write (statename(7:10),'(i4.4)') nstate
+
+      write (*,120) nstate
+  120 format (' =======================================', &
+            /,'       Statepoint ', i0, &
+            /,' =======================================')
+
+!--------------------
+!  exposure
+!--------------------
+
+      dataset=trim(statename)//'exposure'
+      call hdf5_read_double(file_id1, dataset, xexpo)
+
+      dataset=trim(statename)//'exposure_efpd'
+      call hdf5_read_double(file_id1, dataset, xefpd)
 
 !--------------------
 !  eigenvalue
@@ -293,7 +327,7 @@
       endif
 
       if (.not.ifmissing) then
-        call pin_compare(file_id1, file_id2, dataset, xmax)
+        call pin_compare(file_id1, file_id2, dataset, xmax, xrms)
         write (*,320) pintol
         if (abs(xmax).lt.pintol) then
           write (*,*) 'PASS - pin power difference is less than tolerance'
@@ -303,6 +337,19 @@
         endif
       endif
   320 format (3x,'tolerance = ', f5.2,' %')
+
+!--- print summary line
+
+      summary(1)=xexpo
+      summary(2)=xefpd
+      summary(3)=xkeff1
+      summary(4)=xkeff2
+      summary(5)=xkdiff
+      summary(6)=xmax
+      summary(7)=xrms
+
+      write (*,55) xkeff1, xkeff2, xkdiff, xmax, xrms
+   55 format ('Summary  ',2f10.6, f8.1, 2f8.4)
 
 !--- return
 
@@ -314,13 +361,14 @@
 !  Subroutine to read two pin_power datasets and calculate RMS
 !
 !=======================================================================
-      subroutine pin_compare(file_id1, file_id2, dataset, xmax)
+      subroutine pin_compare(file_id1, file_id2, dataset, xmax, xrms)
       use hdf5
       use mod_hdftools, only : h5info, hdf5_read_double
       implicit none
       integer(hid_t),   intent(in)  :: file_id1, file_id2
       character(len=*), intent(in)  :: dataset
       real(8),          intent(out) :: xmax   ! return max difference (%)
+      real(8),          intent(out) :: xrms   ! return RMS difference (%)
 
       integer :: ip, jp, k, na, np
       integer :: nassm, kd, npin
@@ -438,6 +486,7 @@
       endif
 
       xmax=dmax*100.0d0
+      xrms=rms*100.0d0
  
       deallocate (power2)
       deallocate (power1)
@@ -458,6 +507,44 @@
  131  format (3x,'max difference ', f10.4,' % at (ip,jp,k,na) ', 4i4)
  138  format (3x,'difference in max pin ', f10.4,' %')
 
+
       return
       end subroutine pin_compare
+!=======================================================================
+!
+!  Subroutine to count number of statepoints on a file
+!  This is needed to perform allocations
+!
+!=======================================================================
+      subroutine countstates(file_id, nstate)
+      use hdf5
+      implicit none
+      integer(hid_t), intent(in)  :: file_id     ! HDF file id's
+      integer,        intent(out) :: nstate      ! number of statepoints on file
+
+      logical :: ifxst
+      integer :: ierror
+      character(len=10) :: group_name
+
+      nstate=0
+      group_name='STATE_0001'
+
+      call h5lexists_f(file_id, group_name, ifxst, ierror)
+      if (.not. ifxst) then
+        write (*,'(3a)') 'ERROR: Group STATE_0001 does not exist on file, is this a VERA output file?'
+        return
+      endif
+
+      nstate=1    ! first state found successfully
+
+      do
+        write (group_name(7:10),'(i4.4)') nstate+1
+        call h5lexists_f(file_id, group_name, ifxst, ierror)
+        if (.not.ifxst) exit
+        nstate=nstate+1
+      enddo
+
+      return
+      end subroutine countstates
+
 !=======================================================================
