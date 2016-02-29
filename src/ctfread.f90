@@ -3,7 +3,7 @@
 !
 !  Program to read CTF HDF output file and print summary
 !
-!  Copyright (c) 2014-2015 Core Physics, Inc.
+!  Copyright (c) 2014-2016 Core Physics, Inc.
 !
 !  Distributed under the MIT license.
 !  See the LICENSE file in the main directory for details.
@@ -22,6 +22,7 @@
 !  2015/03/06 - Major restructure to allow edits by distribution
 !  2015/04/03 - Add DNB edits
 !  2015/04/06 - Add core symmetry and core map
+!  2015/12/09 - Update distributions
 !
 !  There are still some issues that need to be worked out:
 !    * There are some cases that have a very small power in non-fuel regions
@@ -57,7 +58,7 @@
       character(len=22)  :: state_name      ! HDF group name for STATE
       character(len=22)  :: group_name      ! HDF group name for CORE
 
-      integer, parameter :: maxdist=17
+      integer, parameter :: maxdist=19
       character(len=40)  :: dist_label(maxdist)
       logical            :: dist_print(maxdist)
       logical            :: dist_chan (maxdist)   ! channel array flag (i.e. not pin array)
@@ -97,32 +98,57 @@
 
 !  initialize
 
+      i=0
       filename=' '
-
-      dist_label( 1)="pin_powers"     ! no units
-      dist_label( 2)="Rod_Surface_Temp_NE_Quad [C]"
-      dist_label( 3)="Rod_Surface_Temp_NW_Quad [C]"
-      dist_label( 4)="Rod_Surface_Temp_SE_Quad [C]"
-      dist_label( 5)="Rod_Surface_Temp_SW_Quad [C]"
-      dist_label( 6)="Steaming_Rate_NE_Quad [kg_per_s]"
-      dist_label( 7)="Steaming_Rate_NW_Quad [kg_per_s]"
-      dist_label( 8)="Steaming_Rate_SE_Quad [kg_per_s]"
-      dist_label( 9)="Steaming_Rate_SW_Quad [kg_per_s]"
-      dist_label(10)="channel_liquid_temps [C]"
-      dist_label(11)="pin_fueltemps [C]"
-      dist_label(12)="equilibrium_quality"
-      dist_label(13)="liquid_density"
-      dist_label(14)="mixture_massflux"
-      dist_label(15)="pin_min_dnbr"
-      dist_label(16)="pressure"
-      dist_label(17)="vapor_void"
-
       dist_chan(:)=.false.   ! mark as pin arrays (not channel arrays)
-      dist_chan(10)=.true.   ! mark as channel array
-      dist_chan(13)=.true.   ! mark as channel array
-      dist_chan(14)=.true.   ! mark as channel array
-      dist_chan(16)=.true.   ! mark as channel array
-      dist_chan(17)=.true.   ! mark as channel array
+
+      i=i+1
+      dist_label(i) ="pin_powers"     ! no units
+      i=i+1
+      dist_label(i) ="Rod_Surface_Temp_NE_Quad [C]"   ! may only exist if steaming on
+      i=i+1
+      dist_label(i) ="Rod_Surface_Temp_NW_Quad [C]"   ! may only exist if steaming on
+      i=i+1
+      dist_label(i) ="Rod_Surface_Temp_SE_Quad [C]"
+      i=i+1
+      dist_label(i) ="Rod_Surface_Temp_SW_Quad [C]"
+      i=i+1
+      dist_label(i) ="Steaming_Rate_NE_Quad [kg_per_s]"
+      i=i+1
+      dist_label(i) ="Steaming_Rate_NW_Quad [kg_per_s]"
+      i=i+1
+      dist_label(i) ="Steaming_Rate_SE_Quad [kg_per_s]"
+      i=i+1
+      dist_label(i) ="Steaming_Rate_SW_Quad [kg_per_s]"
+      i=i+1
+      dist_label(i) ="channel_liquid_temps [C]"
+      dist_chan(i) =.true.   ! mark as channel array
+      i=i+1
+      dist_label(i) ="pin_fueltemps [C]"
+      i=i+1
+      dist_label(i) ="pin_max_clad_surface_temp"
+      i=i+1
+      dist_label(i) ="pin_min_dnbr"
+      i=i+1
+      dist_label(i) ="equilibrium_quality"
+      dist_chan(i) =.true.   ! mark as channel array
+      i=i+1
+      dist_label(i) ="liquid_density"
+      dist_chan(i) =.true.   ! mark as channel array
+      i=i+1
+      dist_label(i) ="mixture_massflux"
+      dist_chan(i) =.true.   ! mark as channel array
+      i=i+1
+      dist_label(i) ="pin_min_dnbr"
+      i=i+1
+      dist_label(i) ="pressure"
+      dist_chan(i) =.true.   ! mark as channel array
+      i=i+1
+      dist_label(i) ="vapor_void"
+      dist_chan(i) =.true.   ! mark as channel array
+
+      if (i.ne.maxdist) stop 'maxdist error'
+
 
       llpow=1      ! save location of power
       lltcool=9    ! save location of tcool
