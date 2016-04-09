@@ -517,6 +517,7 @@
 
       integer :: i, j, k
       integer :: na
+      integer :: nhot
       integer :: k3min(4)
       integer :: k3max(4)
       integer :: k2min(3)
@@ -529,6 +530,7 @@
 
       pow2d(:,:,:)=0.0d0
 
+      nhot=0
       c3max=0.0d0        ! 3D core max
       c3min=1.0d20       ! 3D core min
       c2max=0.0d0        ! 2D core max
@@ -552,6 +554,7 @@
             do k=1, kd   ! loop over axial levels
               pp=power(i,j,k,na)
               if (pp.gt.0.0d0) then
+                nhot=nhot+1
                 zrod=zrod+axial(k)*pp
                 zave=zave+axial(k)
                 if (pp.lt.c3min) then
@@ -589,6 +592,11 @@
           enddo
         enddo
       enddo      ! na
+
+      if (nhot.eq.0) then    ! protect edits
+        c2min=0.0d0
+        c3min=0.0d0
+      endif
 
       write (*,180) 'max', c3max, k3max(:)
       write (*,180) 'min', c3min, k3min(:)
