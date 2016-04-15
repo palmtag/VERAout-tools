@@ -149,7 +149,7 @@
       endif
   122 format ( &
           /,'  ==================================================================', &
-          /,'                         Statepoint Summary', &
+          /,'                     Statepoint Summary (file2-file1)', &
           /,'  ==================================================================', &
           /,'     N     exp     EFPD    keff1     keff2      pcm   max%    rms%')
    55 format (2x,i4, f9.4, f8.2, 2f10.6, f8.1, 2f8.4)
@@ -375,8 +375,7 @@
       integer :: ndim         ! number of array dimensions
       integer :: idim(10)     ! array dimension sizes
       integer :: itype        !
-      integer :: kmax1(4)     ! location of max difference file 1
-      integer :: kmax2(4)     ! location of max difference file 2
+      integer :: kmax1(4)     ! location of max difference
       integer :: lmax1(4)     ! location of max power file 1
       integer :: lmax2(4)     ! location of max power file 2
 
@@ -432,8 +431,7 @@
       rms=0.0d0
       dmax=0.0d0
       np=0
-      kmax1(:)=0    ! location of max difference file 1
-      kmax2(:)=0    ! location of max difference file 2
+      kmax1(:)=0    ! location of max difference
       lmax1(:)=0    ! location of max power file 1
       lmax2(:)=0    ! location of max power file 2
       pmax1=0.0d0   ! max power of distribution 1
