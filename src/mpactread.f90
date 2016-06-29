@@ -73,6 +73,7 @@
       real(8)  :: rated_power               ! rated flow
       real(8)  :: rated_flow                ! rated power
       real(8)  :: apitch                    ! assembly pitch
+      real(8)  :: outlet_temp               ! outlet temperature
 
       real(8), allocatable :: axial(:)      ! axial elevations
       real(8), allocatable :: temp4d(:,:,:,:)
@@ -481,6 +482,13 @@
         call h5lexists_f(file_id, dataset, ifxst, ierror)
         if (ifxst) then
           call hdf5_read_integer(file_id, dataset, state_nout(nstate))
+        endif
+
+        dataset=trim(group_name)//'outlet_temp'
+        call h5lexists_f(file_id, dataset, ifxst, ierror)
+        if (ifxst) then
+          call hdf5_read_double(file_id, dataset, outlet_temp)
+          write (*,*) 'outlet_temp = ', outlet_temp
         endif
 
         if (ifdebug) write (*,*) 'debug: keff = ', xkeff
