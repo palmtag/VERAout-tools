@@ -15,7 +15,7 @@ HDFOPT =
 .SUFFIXES:
 .SUFFIXES: .o .f90 .exe
 
-all:    hunittest.exe makehdf.exe mpactread.exe mpactxmf.exe mpactres.exe ctfread.exe veradiff.exe
+all:    hunittest.exe makehdf.exe mpactread.exe mpactxmf.exe mpactres.exe ctfread.exe veradiff.exe getscaler.exe
 
 mpactread.exe: Mod_hdftools.o mpactread.o output_utils.o
 	$(FC) $(FFLAGS) Mod_hdftools.o mpactread.o output_utils.o $(HDFOPT) -o $@
@@ -38,6 +38,9 @@ makehdf.exe: Mod_hdftools.o makehdf.o
 veradiff.exe: Mod_hdftools.o veradiff.o
 	$(FC) $(FFLAGS) Mod_hdftools.o veradiff.o $(HDFOPT) -o $@
 
+getscaler.exe: Mod_hdftools.o getscaler.o
+	$(FC) $(FFLAGS) Mod_hdftools.o getscaler.o $(HDFOPT) -o $@
+
 .f90.o:
 	$(FC) $(FFLAGS) -c $*.f90
 
@@ -51,4 +54,5 @@ ctfread.o : Mod_hdftools.o
 hunittest.o : Mod_hdftools.o
 makehdf.o : Mod_hdftools.o
 veradiff.o : Mod_hdftools.o
+getscaler.o : Mod_hdftools.o
 
