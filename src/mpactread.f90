@@ -1,4 +1,7 @@
    program mpactread
+   use  hdf5
+   use  mod_hdftools
+   implicit none
 !=======================================================================
 !
 !  Program to read MPACT HDF output file and print summary
@@ -22,9 +25,6 @@
 !  2015/03/25 - add outer iterations count and time edits
 !
 !-----------------------------------------------------------------------
-      use  hdf5
-      use  mod_hdftools
-      implicit none
 
       character(len=80)  :: inputfile
       character(len=80)  :: carg            ! command line argument

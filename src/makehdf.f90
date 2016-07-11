@@ -1,3 +1,4 @@
+   program makehdf 
 !=======================================================================
 !
 !  Program to create VERAOUT test file with boron and eigenvalue at multiple statepoints
@@ -11,7 +12,6 @@
 !  2014/05/01 - update to match VERAOUT Rev. 1 
 !
 !=======================================================================
-      program makehdf 
 
       use hdf5
       use mod_hdftools

@@ -1,3 +1,6 @@
+   module mod_hdftools
+   use     hdf5
+   implicit none
 !=======================================================================
 !
 !  Module to include all subroutines for reading HDF5 file
@@ -60,9 +63,6 @@
 !
 !=======================================================================
 
-      module mod_hdftools
-      use     hdf5
-      implicit none
 
       logical :: ifdebug=.false.    ! common debug flag for all subroutines
 

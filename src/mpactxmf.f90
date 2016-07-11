@@ -1,3 +1,7 @@
+   program mpactxmf
+   use hdf5
+   use mod_hdftools
+   implicit none
 !=======================================================================
 !
 !  Program to read an existing MPACT HDF output file and
@@ -28,12 +32,6 @@
 !  Open the xmf file in either visit or paraview
 !
 !=======================================================================
-      program mpactxmf
-
-      use hdf5
-      use mod_hdftools
-
-      implicit none
 
       character(len=120):: filename      ! HDF File name
       character(len=120):: filectf       ! HDF CTF File name

@@ -1,3 +1,7 @@
+   program mpactres
+   use  hdf5
+   use  mod_hdftools
+   implicit none
 !=======================================================================
 !
 !  Program to read two MPACT Restart file and perform general edits
@@ -19,10 +23,6 @@
 !  Use utility "h5dump -H restart.h5" to see format of restart file
 !
 !-----------------------------------------------------------------------
-      program mpactres
-      use  hdf5
-      use  mod_hdftools
-      implicit none
 
       integer            :: iargs           ! number of command line arguments
       integer            :: k, n

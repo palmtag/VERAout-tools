@@ -1,4 +1,6 @@
    program veradiff
+   use hdf5
+   implicit none
 !=======================================================================
 !
 !  Program to compare two VERA HDF output file and print summary
@@ -25,8 +27,6 @@
 !  2016/02/28 - add statepoint summary
 !
 !--------------------------------------------------------------------------------
-      use hdf5
-      implicit none
 
       character(len=250) :: fname1, fname2   ! HDF file names
       integer            :: iargs            ! number of command line arguments

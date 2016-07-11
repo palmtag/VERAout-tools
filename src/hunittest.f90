@@ -1,3 +1,4 @@
+   program h_unit_test
 !=======================================================================
 !
 !  Program to perform unit tests on Mod_htdftools
@@ -8,7 +9,6 @@
 !  See the LICENSE file in the main directory for details.
 !
 !=======================================================================
-      program h_unit_test
 
       use hdf5
       use mod_hdftools

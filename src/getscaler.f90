@@ -119,7 +119,7 @@
 
 !--- close file
 
-  800 continue
+! 800 continue
 
       call h5fclose_f(file_id, ierror)
 

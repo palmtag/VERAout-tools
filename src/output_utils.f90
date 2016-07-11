@@ -1,3 +1,5 @@
+   subroutine stat3d (title, npin, kd, nassm, icore, jcore, mapcore, axial, power, pave, pmax)
+   implicit none
 !=======================================================================
 !
 !  Subroutines for writing 1D and 2D maps to output
@@ -14,8 +16,6 @@
 !  General version that considers qtr-symmetry
 !
 !=======================================================================
-      subroutine stat3d (title, npin, kd, nassm, icore, jcore, mapcore, axial, power, pave, pmax)
-      implicit none
       integer, intent(in) :: npin, kd, nassm
       integer, intent(in) :: icore, jcore
       integer, intent(in) :: mapcore(icore,jcore)
