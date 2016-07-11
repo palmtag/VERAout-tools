@@ -24,7 +24,8 @@
 !
 !     hdf5_read_double  (generic subroutine)
 !        read_double   (file_id, dataset, xvar)
-!        read_double1d (file_id, dataset, max_idm, idm, xvar)
+!        read_double1do(file_id, dataset, max_idm, idm, xvar)     ! exact size can be over allocated
+!        read_double1d (file_id, dataset, idm1, xvar)
 !        read_double2d (file_id, dataset, idm1, idm2, xvar)
 !        read_double3d (file_id, dataset, idm1, idm2, idm3, xvar)
 !        read_double4d (file_id, dataset, idm1, idm2, idm3, idm4, xvar)
@@ -33,7 +34,8 @@
 !
 !     hdf5_read_integer  (generic subroutine)
 !        read_integer  (file_id, dataset, ivar)
-!        read_integer1d(file_id, dataset, max_idm, idm, ivar)
+!        read_integer1do(file_id, dataset, max_idm, idm, ivar)   ! exact size can be over allocated
+!        read_integer1d(file_id, dataset, idm, ivar)
 !        read_integer2d(file_id, dataset, idm, jdm, ivar)
 !
 !  Routines to write:
@@ -69,10 +71,12 @@
       private :: ifdebug
 
       private :: read_integer
+      private :: read_integer1do
       private :: read_integer1d
       private :: read_integer2d
 
       private :: read_double
+      private :: read_double1do
       private :: read_double1d
       private :: read_double2d
       private :: read_double3d
@@ -82,11 +86,11 @@
 !--- define generic interface to read datasets
 
       interface hdf5_read_integer
-        module procedure read_integer, read_integer1d, read_integer2d
+        module procedure read_integer, read_integer1do, read_integer1d, read_integer2d
       end interface hdf5_read_integer
 
       interface hdf5_read_double
-        module procedure read_double, read_double1d, read_double2d, read_double3d, read_double4d
+        module procedure read_double, read_double1do, read_double1d, read_double2d, read_double3d, read_double4d
       end interface hdf5_read_double
 
 ! *** TO-DO: Create generic interface to write data
@@ -101,7 +105,7 @@
 !  (this is different than read_integer2d)
 !
 !=======================================================================
-      subroutine read_integer1d(file_id, dataset, max_idm, idm, ivar)
+      subroutine read_integer1do(file_id, dataset, max_idm, idm, ivar)
       implicit none
 
       integer(hid_t),   intent(in) :: file_id
@@ -166,9 +170,9 @@
 !  allow size 0 for SCALAR data
 
       if (maxndim.ne.1 .and. maxndim.ne.0) then
-        write (*,*) 'invalid number of dimensions in read_integer1d'
+        write (*,*) 'invalid number of dimensions in read_integer1do'
         write (*,*) '  expecting 0 or 1, found ', maxndim
-        call h5_fatal('read_integer1d', 'invalid number of dimensions')
+        call h5_fatal('read_integer1do', 'invalid number of dimensions')
       endif
 
       idm=int(h_dims(1))
@@ -197,6 +201,105 @@
         write (*,'(/,a)') ' 1D Integer Array'
         do k=1, idm
           write (*,'(2x,i4,20i12)') k, ivar(k)
+        enddo
+      endif
+
+      return
+      end subroutine read_integer1do
+
+!=======================================================================
+!
+!  Subroutine to read 1D array of integers from HDF file
+!
+!  integer array has already been allocated and exact size must be given
+!  (hint: find size from call to h5info and allocate array accordingly)
+!
+!  output:  ivar(idm)
+!
+!=======================================================================
+      subroutine read_integer1d(file_id, dataset, idm, ivar)
+      implicit none
+
+      integer(hid_t),   intent(in) :: file_id
+      character(len=*), intent(in) :: dataset
+      integer,          intent(in) :: idm
+      integer,          intent(out):: ivar(idm)
+
+!--- local
+
+      integer(hid_t) :: dset_id
+      integer(hid_t) :: ispace_id
+      integer        :: ierror
+      integer        :: maxndim
+      integer        :: i
+
+      integer, parameter :: max_dimen=1     ! maximum number of dimensions allowed
+
+      integer(hsize_t) :: h_dims(max_dimen)
+      integer(hsize_t) :: h_maxdims(max_dimen)
+
+      ierror=0
+      ivar(:)=0
+
+!--- open a dataset and dataspace
+
+      write (*,'(1x,2a)') 'reading dataset: ', trim(dataset)
+
+      call h5dopen_f(file_id, dataset, dset_id, ierror)
+      if (ierror.lt.0) then
+        write (*,'(3a)')   'error: data set ',trim(dataset), ' could not be opened'
+        write (*,'(a,i8)') 'error code ', ierror
+        return
+      endif
+
+      call h5dget_space_f(dset_id, ispace_id, ierror)              !Assign a dataspace based on the dataset
+      if (ierror.ne.0) then
+        write (*,*) 'error: h5dget_space_f ', ierror
+        call h5_fatal('h5dget_space_f','ierror')
+      endif
+
+! Determine number of discrete subunits for each dimensions
+      h_dims(:)=0
+      h_maxdims(:)=0
+      call h5sget_simple_extent_dims_f(ispace_id, h_dims, h_maxdims, ierror)
+      if (ierror.lt.0) then    ! returns rank in ierror
+        write (*,*) 'error: h5sget_simple_extent_dims_f ', ierror
+        call h5_fatal('h5sget_simple_extent_dims_f','ierror')
+      endif
+      maxndim=ierror
+
+      if (ifdebug) then
+        write (*,110) trim(dataset)
+        write (*,115) 'number of dimensions: ', maxndim
+        write (*,115) 'dimensions    : ', h_dims(1:maxndim)
+        write (*,115) 'dimensions max: ', h_maxdims(1:maxndim)
+      endif
+  110 format (/,' dataset : ', a)
+  115 format (1x,a,20i4)
+
+      if (maxndim.gt.max_dimen) call h5_fatal('read_integer2d','maximum dimensions exceeded')
+      if (maxndim.ne.max_dimen) then
+        write (*,*) 'invalid number of dimensions in read_integer2d'
+        write (*,*) '  expecting 2, found ', maxndim
+        call h5_fatal('read_integer2d','invalid number of dimensions')
+      endif
+
+      if (h_dims(1).ne.idm) call h5_fatal('read_integer2d','idm error')
+
+! Read data from dataset
+      call h5dread_f(dset_id, H5T_NATIVE_INTEGER, ivar, h_dims, ierror)
+      if (ierror.ne.0) then
+        write (*,*) 'error reading data set ',trim(dataset)
+        call h5_fatal('read_integer2d','error reading data set '//trim(dataset))
+      endif
+
+      call h5sclose_f(ispace_id, ierror)
+      call h5dclose_f(dset_id, ierror)
+
+      if (ifdebug) then
+        write (*,'(/,a)') ' 1D integer array:'
+        do i=1, idm
+          write (*,'(2x,i4,20i12)') i, ivar(i)
         enddo
       endif
 
@@ -330,7 +433,7 @@
       idm_max=1
       idm=1
 
-      call read_integer1d (file_id, dataset, idm_max, idm, iarray_temp)
+      call read_integer1d(file_id, dataset, idm, iarray_temp)
 
       ivar=iarray_temp(1)
 
@@ -353,7 +456,6 @@
 
 !--- local
 
-      integer :: idm_max
       integer :: idm
       real(8) :: array_temp(1)
 
@@ -363,10 +465,9 @@
 
 !  double precisions scalars are actually 1D arrays with a single element
 
-      idm_max=1
       idm=1
 
-      call read_double1d (file_id, dataset, idm_max, idm, array_temp)
+      call read_double1d (file_id, dataset, idm, array_temp)
 
       xvar=array_temp(1)
 
@@ -380,7 +481,7 @@
 !  (this is different than 2D read)
 !
 !=======================================================================
-      subroutine read_double1d(file_id, dataset, max_idm, idm, xvar)
+      subroutine read_double1do(file_id, dataset, max_idm, idm, xvar)
       implicit none
 
       integer(hid_t),   intent(in) :: file_id
@@ -444,11 +545,11 @@
 
 !  allow size 0 for SCALAR data
 
-      if (maxndim.gt.max_dimen) call h5_fatal('read_double1d','maximum dimensions exceeded')
+      if (maxndim.gt.max_dimen) call h5_fatal('read_double1do','maximum dimensions exceeded')
       if (maxndim.ne.1 .and. maxndim.ne.0) then
-        write (*,*) 'invalid number of dimensions in read_double1d'
+        write (*,*) 'invalid number of dimensions in read_double1do'
         write (*,*) '  expecting 0 or 1, found ', maxndim
-        call h5_fatal('read_double1d','invalid number of dimensions')
+        call h5_fatal('read_double1do','invalid number of dimensions')
       endif
 
       idm =int(h_dims(1))
@@ -467,7 +568,7 @@
       call h5dread_f(dset_id, H5T_NATIVE_DOUBLE, xvar, h_dims, ierror)
       if (ierror.ne.0) then
         write (*,*) 'error reading data set ',trim(dataset)
-        call h5_fatal ('read_double1d', 'error reading data set '//trim(dataset))
+        call h5_fatal ('read_double1do', 'error reading data set '//trim(dataset))
       endif
 
       call h5sclose_f(ispace_id, ierror)
@@ -481,7 +582,111 @@
       endif
 
       return
+      end subroutine read_double1do
+!=======================================================================
+!
+!  Subroutine to read 2D array of double from HDF file
+!
+!  double array has already been allocated and the dimensions
+!  must match what is on the file exactly
+!  (this is different than 1D read)
+!
+!=======================================================================
+      subroutine read_double1d(file_id, dataset, idm1, xvar)
+      implicit none
+
+      integer(hid_t),   intent(in) :: file_id
+      character(len=*), intent(in) :: dataset
+      integer,          intent(in) :: idm1
+      real(8),          intent(out):: xvar(idm1)
+
+!--- local
+
+      integer(hid_t) :: dset_id
+      integer(hid_t) :: ispace_id
+      integer        :: ierror
+      integer        :: maxndim
+      integer        :: i
+
+      integer, parameter :: max_dimen=1     ! maximum number of dimensions allowed
+
+      integer(hsize_t) :: h_dims(max_dimen)
+      integer(hsize_t) :: h_maxdims(max_dimen)
+
+      ierror=0
+      xvar(:)=0.0d0
+
+!--- open a dataset and dataspace
+
+      write (*,'(1x,2a)') 'reading dataset: ', trim(dataset)
+
+      call h5dopen_f(file_id, dataset, dset_id, ierror)
+      if (ierror.lt.0) then
+        write (*,'(3a)')   'error: data set ',trim(dataset), ' could not be opened'
+        write (*,'(a,i8)') 'error code ', ierror
+        return
+      endif
+
+      call h5dget_space_f(dset_id, ispace_id, ierror)              !Assign a dataspace based on the dataset
+      if (ierror.ne.0) then
+        write (*,*) 'error: h5dget_space_f ', ierror
+        call h5_fatal('h5dget_space_f','ierror')
+      endif
+
+! Determine number of discrete subunits for each dimensions
+      h_dims(:)=0
+      h_maxdims(:)=0
+      call h5sget_simple_extent_dims_f(ispace_id, h_dims, h_maxdims, ierror)
+      if (ierror.lt.0) then    ! returns rank in ierror
+        write (*,*) 'error: h5sget_simple_extent_dims_f ', ierror
+        call h5_fatal('h5sget_simple_extent_dims_f','ierror')
+      endif
+      maxndim=ierror
+
+      if (ifdebug) then
+        write (*,110) trim(dataset)
+        write (*,115) 'number of dimensions: ', maxndim
+        write (*,115) 'dimensions    : ', h_dims(1:maxndim)
+        write (*,115) 'dimensions max: ', h_maxdims(1:maxndim)
+      endif
+  110 format (/,' dataset : ', a)
+  115 format (1x,a,20i4)
+
+      if (maxndim.gt.max_dimen) call h5_fatal('read_double2d','maximum dimensions exceeded')
+      if (maxndim.ne.1) then
+        write (*,*) 'invalid number of dimensions in read_double2d'
+        write (*,*) '  expecting 2, found ', maxndim
+        call h5_fatal('read_double2d','invalid number of dimensions')
+      endif
+
+      if (idm1.ne.int(h_dims(1))) then
+        write (*,*) 'input idm1   = ', idm1
+        write (*,*) 'output hdim  = ', h_dims(1)
+        write (*,*) 'ERROR: array bounds do not match'
+        call h5_fatal('read_double2d','array bounds do not match')
+        return
+      endif
+
+! Read data from dataset
+      call h5dread_f(dset_id, H5T_NATIVE_DOUBLE, xvar, h_dims, ierror)
+      if (ierror.ne.0) then
+        write (*,*) 'error reading data set ',trim(dataset)
+        call h5_fatal('read_double2d','error reading data set '//trim(dataset))
+      endif
+
+      call h5sclose_f(ispace_id, ierror)
+      call h5dclose_f(dset_id, ierror)
+
+      if (ifdebug) then
+        write (*,'(/,a)') ' 2D Double array:'
+        do i=1, idm1
+          write (*,'(2x,i4,20f12.4)') i, xvar(i)
+        enddo
+      endif
+
+      return
       end subroutine read_double1d
+
 !=======================================================================
 !
 !  Subroutine to read 2D array of double from HDF file
