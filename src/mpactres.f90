@@ -30,6 +30,7 @@
 
       integer  :: iargs        ! number of command line arguments
       integer  :: k, n
+      integer  :: i, ii
       integer  :: ierror
       integer  :: izsum
 
@@ -251,6 +252,11 @@
 !!       dataset=trim(group_name)//'/'//trim(assm_name)//'/symmetry'
 !!       call read_string(file_id, dataset, symmetry)
 
+!  the following 3D array can be used to determine which zones belong to each pin
+!  **** need to check the order of dimensions (nxpin, nypin, nz)
+!!       dataset=trim(group_name)//'/'//trim(assm_name)//'/nxsreg pin'
+!!       call hdf5_read_double(file_id, dataset, nxpin, nypin, nz, nxsreg)
+
          write (*,'(/,2a)') ' Assembly ', trim(assm_name)
          write (*,130) 'nxpin   ', nxpin
          write (*,130) 'nypin   ', nypin
@@ -258,7 +264,7 @@
          write (*,130) 'nxs     ', nz
          write (*,130) 'ndat    ', ndat
          write (*,130) 'rotation', irot
-         write (*,*) 'Initial Heavy Metal Mass', amass
+         write (*,*) '  Initial Heavy Metal Mass', amass
 
          allocate (axial(nz))
          allocate (axmass(nz))
@@ -325,20 +331,26 @@
          izsum=0
          vsum=0.0d0
 
-         write (*,'(2a)') ' Assembly ', trim(assm_name)
-         write (*,*) '  Zone Index,   Burnup,  Initial Mass, Volume'
+         write (*,'(/,2a)') ' Assembly ', trim(assm_name)
+         write (*,*) '     Zone Index,  Burnup,  Initial Mass, Volume'
          do n=1, nzone
            write (*,540) n, zoneindx(n), zoneburn(n), zonemass(n), zonevolm(n)
            izsum=izsum+zoneindx(n)
            vsum =vsum +zonevolm(n)
          enddo
-     540 format (i4, i6, 1p, 3e14.5)
+     540 format (i6, i6, f12.3, 1p, 3e14.5)
 
          write (*,*) 'sum of zone indexes = ', izsum
          if (izsum.ne.ndat) stop 'sum of zone indexes does not match ndat'
 
          write (*,*) 'total volume = ', vsum
-         write (*,*) 'spp: temp vol  ', 3.141592653589d0*0.4096d0*0.4096d0
+
+         if (nxpin.eq.17 .and. nypin.eq.17) then
+           write (*,*) 'debug: temp vol  ', 3.141592653589d0*0.4096d0*0.4096d0*264.0d0
+         endif
+         if (nxpin.eq.1 .and. nypin.eq.1) then
+           write (*,*) 'debug: temp vol  ', 3.141592653589d0*0.4096d0*0.4096d0
+         endif
 
 !--- Nuclide distributions
 
@@ -348,7 +360,20 @@
          dataset=trim(group_name)//'/'//trim(assm_name)//'/Fuel Composition'
          call hdf5_read_double (file_id, dataset, ndat, fcomp)
 
-!   calculate averages over assembly
+         if (ifdata) then
+           ii=0
+           do n=1, nzone
+             write (*,*) 'Zone ', n
+             do i=1, zoneindx(n)
+                ii=ii+1
+                write (*,550) ii, zaids(nucid(ii)), fcomp(ii), zonevolm(n)
+             enddo
+           enddo
+           if (ii.ne.ndat) stop 'ndat sum error'
+         endif
+     550 format (i10, i8, 1p, 2e14.6)
+
+!   calculate average isotopics over assembly
 
          call ave_pin(nzone, ndat, nzaid, zoneindx, zonevolm, nucid, fcomp, zaids)
 
@@ -426,10 +451,8 @@
       vsum=0.0d0
       ii=0
       do n=1, nzone
-        write (*,*) 'Zone ', n
         do i=1, zoneindx(n)
            ii=ii+1
-           write (*,550) ii, zaids(nucid(ii)), fcomp(ii), zonevolm(n)
            avepin(nucid(ii))=avepin(nucid(ii)) + fcomp(ii)*zonevolm(n)
         enddo
         vsum=vsum+zonevolm(n)
@@ -441,7 +464,7 @@
 !--- find non-zero values and create short list
 
       write (*,*)
-      write (*,*) 'Pin average number densities'
+      write (*,*) 'Assembly average number densities in fuel'
       ii=0
       do n=1, nzaid
         if (avepin(n).ne.0.0d0) then
@@ -497,7 +520,6 @@
           endif
         enddo
       enddo
-
 
 !--- print short list
 
