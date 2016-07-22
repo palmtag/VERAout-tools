@@ -428,12 +428,13 @@
 
       ivar=-1         ! init
 
-!  integer scalars are actually 1D arrays with a single element
+!  integer scalars can be 1D arrays with a single element
+!  The "1do" routine supports reading both ways
 
       idm_max=1
       idm=1
 
-      call read_integer1d(file_id, dataset, idm, iarray_temp)
+      call read_integer1do(file_id, dataset, idm_max, idm, iarray_temp)
 
       ivar=iarray_temp(1)
 
@@ -456,6 +457,7 @@
 
 !--- local
 
+      integer :: idm_max
       integer :: idm
       real(8) :: array_temp(1)
 
@@ -463,11 +465,13 @@
 
 !--- Read double precision scalar
 
-!  double precisions scalars are actually 1D arrays with a single element
+!  double scalars can be 1D arrays with a single element
+!  The "1do" routine supports reading both ways
 
+      idm_max=1
       idm=1
 
-      call read_double1d (file_id, dataset, idm, array_temp)
+      call read_double1do(file_id, dataset, idm_max, idm, array_temp)
 
       xvar=array_temp(1)
 
