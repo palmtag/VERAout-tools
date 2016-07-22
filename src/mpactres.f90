@@ -51,6 +51,19 @@
 
       real(8)  :: vsum
 
+      character(len=2) :: element_name(100)
+      data element_name / &
+        'H ','He','Li','Be','B ','C ','N ','O ','F ','Ne', &
+        'Na','Mg','Al','Si','P ','S ','Cl','Ar','K ','Ca', &
+        'Sc','Ti','V ','Cr','Mn','Fe','Co','Ni','Cu','Zn', &
+        'Ga','Ge','As','Se','Br','Kr','Rb','Sr','Y ','Zr', &
+        'Nb','Mo','Tc','Ru','Rh','Pd','Ag','Cd','In','Sn', &
+        'Sb','Te','I ','Xe','Cs','Ba','La','Ce','Pr','Nd', &
+        'Pm','Sm','Eu','Gd','Tb','Dy','Ho','Er','Tm','Yb', &
+        'Lu','Hf','Ta','W ','Re','Os','Ir','Pt','Au','Hg', &
+        'Tl','Pb','Bi','Po','At','Rn','Fr','Ra','Ac','Th', &
+        'Pa','U ','Np','Pu','Am','Cm','Bk','Cf','Es','Fm' /
+
 ! restart file data
 
       integer  :: irot                      ! rotation
@@ -194,8 +207,12 @@
 
       if (ifdata) then
         write (*,*)
-        write (*,*) 'Zaids (by statepoint)'
-        write (*,*) zaids(:)
+        write (*,*) 'List of Zaids on library (by statepoint)'
+        do i=1, nzaid
+          ii=zaids(i)/10
+          n=ii/1000
+          write (*,'(i6,i8,i3,1x,a)') i, ii, zaids(i)-ii*10, element_name(n)
+        enddo
       endif
 
 !-------------------------

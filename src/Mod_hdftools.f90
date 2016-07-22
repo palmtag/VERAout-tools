@@ -277,20 +277,20 @@
   110 format (/,' dataset : ', a)
   115 format (1x,a,20i4)
 
-      if (maxndim.gt.max_dimen) call h5_fatal('read_integer2d','maximum dimensions exceeded')
       if (maxndim.ne.max_dimen) then
-        write (*,*) 'invalid number of dimensions in read_integer2d'
-        write (*,*) '  expecting 2, found ', maxndim
-        call h5_fatal('read_integer2d','invalid number of dimensions')
+        write (*,*) 'invalid number of dimensions in read_integer1d'
+        write (*,*) '  expecting ', max_dimen
+        write (*,*) '  found     ', maxndim
+        call h5_fatal('read_integer1d','invalid number of dimensions')
       endif
 
-      if (h_dims(1).ne.idm) call h5_fatal('read_integer2d','idm error')
+      if (h_dims(1).ne.idm) call h5_fatal('read_integer1d','idm error')
 
 ! Read data from dataset
       call h5dread_f(dset_id, H5T_NATIVE_INTEGER, ivar, h_dims, ierror)
       if (ierror.ne.0) then
         write (*,*) 'error reading data set ',trim(dataset)
-        call h5_fatal('read_integer2d','error reading data set '//trim(dataset))
+        call h5_fatal('read_integer1d','error reading data set '//trim(dataset))
       endif
 
       call h5sclose_f(ispace_id, ierror)
@@ -376,10 +376,10 @@
   110 format (/,' dataset : ', a)
   115 format (1x,a,20i4)
 
-      if (maxndim.gt.max_dimen) call h5_fatal('read_integer2d','maximum dimensions exceeded')
-      if (maxndim.ne.2) then
+      if (maxndim.ne.max_dimen) then
         write (*,*) 'invalid number of dimensions in read_integer2d'
-        write (*,*) '  expecting 2, found ', maxndim
+        write (*,*) '  expecting ', max_dimen
+        write (*,*) '  found     ', maxndim
         call h5_fatal('read_integer2d','invalid number of dimensions')
       endif
 
@@ -545,7 +545,6 @@
 
 !  allow size 0 for SCALAR data
 
-      if (maxndim.gt.max_dimen) call h5_fatal('read_double1do','maximum dimensions exceeded')
       if (maxndim.ne.1 .and. maxndim.ne.0) then
         write (*,*) 'invalid number of dimensions in read_double1do'
         write (*,*) '  expecting 0 or 1, found ', maxndim
@@ -652,18 +651,18 @@
   110 format (/,' dataset : ', a)
   115 format (1x,a,20i4)
 
-      if (maxndim.gt.max_dimen) call h5_fatal('read_double2d','maximum dimensions exceeded')
-      if (maxndim.ne.1) then
-        write (*,*) 'invalid number of dimensions in read_double2d'
-        write (*,*) '  expecting 2, found ', maxndim
-        call h5_fatal('read_double2d','invalid number of dimensions')
+      if (maxndim.ne.max_dimen) then
+        write (*,*) 'invalid number of dimensions in read_double1d'
+        write (*,*) '  expecting ', max_dimen
+        write (*,*) '  found     ', maxndim
+        call h5_fatal('read_double1d','invalid number of dimensions')
       endif
 
       if (idm1.ne.int(h_dims(1))) then
         write (*,*) 'input idm1   = ', idm1
         write (*,*) 'output hdim  = ', h_dims(1)
         write (*,*) 'ERROR: array bounds do not match'
-        call h5_fatal('read_double2d','array bounds do not match')
+        call h5_fatal('read_double1d','array bounds do not match')
         return
       endif
 
@@ -671,14 +670,14 @@
       call h5dread_f(dset_id, H5T_NATIVE_DOUBLE, xvar, h_dims, ierror)
       if (ierror.ne.0) then
         write (*,*) 'error reading data set ',trim(dataset)
-        call h5_fatal('read_double2d','error reading data set '//trim(dataset))
+        call h5_fatal('read_double1d','error reading data set '//trim(dataset))
       endif
 
       call h5sclose_f(ispace_id, ierror)
       call h5dclose_f(dset_id, ierror)
 
       if (ifdebug) then
-        write (*,'(/,a)') ' 2D Double array:'
+        write (*,'(/,a)') ' 1D Double array:'
         do i=1, idm1
           write (*,'(2x,i4,20f12.4)') i, xvar(i)
         enddo
@@ -756,10 +755,10 @@
   110 format (/,' dataset : ', a)
   115 format (1x,a,20i4)
 
-      if (maxndim.gt.max_dimen) call h5_fatal('read_double2d','maximum dimensions exceeded')
-      if (maxndim.ne.2) then
+      if (maxndim.ne.max_dimen) then
         write (*,*) 'invalid number of dimensions in read_double2d'
-        write (*,*) '  expecting 2, found ', maxndim
+        write (*,*) '  expecting ', max_dimen
+        write (*,*) '  found     ', maxndim
         call h5_fatal('read_double2d','invalid number of dimensions')
       endif
 
@@ -815,7 +814,7 @@
       integer        :: ierror
       integer        :: maxndim
 
-      integer, parameter :: max_dimen=4     ! maximum number of dimensions allowed
+      integer, parameter :: max_dimen=3     ! maximum number of dimensions allowed
 
       integer(hsize_t) :: h_dims(max_dimen)
       integer(hsize_t) :: h_maxdims(max_dimen)
@@ -859,10 +858,10 @@
   110 format (/,' dataset : ', a)
   115 format (1x,a,20i4)
 
-      if (maxndim.gt.max_dimen) call h5_fatal('read_double3d','maximum dimensions exceeded')
-      if (maxndim.ne.3) then
+      if (maxndim.ne.max_dimen) then
         write (*,*) 'invalid number of dimensions in read_double3d'
-        write (*,*) '  expecting 3, found ', maxndim
+        write (*,*) '  expecting ', max_dimen
+        write (*,*) '  found     ', maxndim
         call h5_fatal('read_double3d','invalid number of dimensions')
       endif
 
@@ -967,10 +966,10 @@
   110 format (/,' dataset : ', a)
   115 format (1x,a,20i4)
 
-      if (maxndim.gt.max_dimen) call h5_fatal('read_double4d','maximum dimensions exceeded')
-      if (maxndim.ne.4) then
+      if (maxndim.ne.max_dimen) then
         write (*,*) 'invalid number of dimensions in read_double4d'
-        write (*,*) '  expecting 4, found ', maxndim
+        write (*,*) '  expecting ', max_dimen
+        write (*,*) '  found     ', maxndim
         call h5_fatal('read_double4d','invalid number of dimensions')
       endif
 
@@ -1175,11 +1174,9 @@
   110 format (/,' dataset : ', a)
   115 format (1x,a,20i4)
 
-      if (maxndim.gt.max_dimen) call h5_fatal('read_string1d','maximum dimensions exceeded')
-      if (maxndim.ne.2) then
-         write (*,*) 'maxndim  = ', maxndim
-         write (*,*) 'expecting 2'
-         write (*,*) 'max_dimen= ', max_dimen
+      if (maxndim.ne.max_dimen) then
+         write (*,*) '  expecting ', max_dimen
+         write (*,*) '  found     ', maxndim
          call h5_fatal('read_string1d','invalid number of dimensions')
       endif
 

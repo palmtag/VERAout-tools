@@ -452,7 +452,7 @@
         write (*,220) 'read_integer', 'FAIL'
       endif
 
-!--- read 1D array of integer
+!--- read 1D array of integer (max size used)
 
       dsetname = 'int1d'
       int1d=0        ! clear before read
@@ -464,6 +464,25 @@
          write (*,220) 'error in returned 1D size', 'FAIL'
          nfail=nfail+1
       endif
+      nbad=0
+      do i=1, num1d
+        kerr=int1d(i)-i*i
+        if (kerr.ne.0) nbad=nbad+1
+      enddo
+      if (nbad.eq.0) then
+        write (*,220) 'read_integer1d', 'PASS'
+      else
+        write (*,*) 'number of errors ', nbad
+        nfail=nfail+1
+        write (*,220) 'read_integer1d', 'FAIL'
+      endif
+
+!--- read 1D array of integer (size known)
+
+      dsetname = 'int1d'
+      int1d=0        ! clear before read
+
+      call hdf5_read_integer (file_id, dsetname, num1d, int1d)
       nbad=0
       do i=1, num1d
         kerr=int1d(i)-i*i
@@ -497,7 +516,6 @@
         nfail=nfail+1
         write (*,220) 'read_integer2d', 'FAIL'
       endif
-
 
 !--- read string
 
