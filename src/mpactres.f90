@@ -13,14 +13,11 @@
 !
 !=======================================================================
 !
-!  ********* NOTICE *************************
-!  This utility doesn't really do much, it's purpose is to serve as an example
-!  on how to read the MPACT restart file
-!  ******************************************
-!
 !  *** Note that the MPACT restart file uses copressed HDF
 !
 !  2016/03/02 - original file
+!  2016/07/13 - add average isotopic edits (intendend for a pincell)
+!  2016/07/23 - add isotopic edits of first 3 rings
 !
 !  Use utility "h5dump -H restart.h5" to see format of restart file
 !
@@ -50,19 +47,6 @@
       integer(hid_t)     :: file_id         ! HDF file ID
 
       real(8)  :: vsum
-
-      character(len=2) :: element_name(100)
-      data element_name / &
-        'H ','He','Li','Be','B ','C ','N ','O ','F ','Ne', &
-        'Na','Mg','Al','Si','P ','S ','Cl','Ar','K ','Ca', &
-        'Sc','Ti','V ','Cr','Mn','Fe','Co','Ni','Cu','Zn', &
-        'Ga','Ge','As','Se','Br','Kr','Rb','Sr','Y ','Zr', &
-        'Nb','Mo','Tc','Ru','Rh','Pd','Ag','Cd','In','Sn', &
-        'Sb','Te','I ','Xe','Cs','Ba','La','Ce','Pr','Nd', &
-        'Pm','Sm','Eu','Gd','Tb','Dy','Ho','Er','Tm','Yb', &
-        'Lu','Hf','Ta','W ','Re','Os','Ir','Pt','Au','Hg', &
-        'Tl','Pb','Bi','Po','At','Rn','Fr','Ra','Ac','Th', &
-        'Pa','U ','Np','Pu','Am','Cm','Bk','Cf','Es','Fm' /
 
 ! restart file data
 
@@ -207,12 +191,8 @@
 
       if (ifdata) then
         write (*,*)
-        write (*,*) 'List of Zaids on library (by statepoint)'
-        do i=1, nzaid
-          ii=zaids(i)/10
-          n=ii/1000
-          write (*,'(i6,i8,i3,1x,a)') i, ii, zaids(i)-ii*10, element_name(n)
-        enddo
+        write (*,*) 'Zaids (by statepoint)'
+        write (*,*) zaids(:)
       endif
 
 !-------------------------
@@ -428,6 +408,7 @@
 !=======================================================================
 !
 !   Subroutine to calculate average isotopes in a fuel pin
+!   and print a list of mcnp-compatible isotopes
 !
 !=======================================================================
       subroutine ave_pin(nzone, ndat, nzaid, zoneindx, zonevolm, nucid, fcomp, zaids)
@@ -451,17 +432,22 @@
       real(8) :: vsum
       real(8) :: xtmp
 
+      real(8), allocatable :: ring(:,:)  ! long list
       real(8), allocatable :: avepin(:)  ! long list
       real(8), allocatable :: ave2(:)    ! short list
+      real(8), allocatable :: ave3(:,:)  ! short list in first three rings
       integer, allocatable :: izaid(:)   ! short list
 
 
 !--- start
 
+      allocate (ring(3,nzaid))
       allocate (avepin(nzaid))
       allocate (ave2(nzaid))       ! short list
+      allocate (ave3(3,nzaid))     ! short list
       allocate (izaid(nzaid))      ! short list
       avepin=0.0d0
+      ring=0.0d0
 
 !--- average over all zones
 
@@ -476,7 +462,15 @@
       enddo
       if (ii.ne.ndat) stop 'ndat sum error'
 
-  550 format (i6, i8, 1p, 2e14.6)
+  550 format (i6, i8, 1p, 8e14.6)
+
+      ii=0
+      do n=1, 3    ! **** only first 3 rings
+        do i=1, zoneindx(n)
+           ii=ii+1
+           ring(n,nucid(ii))=ring(n,nucid(ii)) + fcomp(ii)
+        enddo
+      enddo
 
 !--- find non-zero values and create short list
 
@@ -488,6 +482,9 @@
            ii=ii+1    ! number of non-zero values
            izaid(ii)=zaids(n)/10        ! put in normal zaid format
            ave2 (ii)=avepin(n)/vsum
+           ave3 (1,ii)=ring(1,n)
+           ave3 (2,ii)=ring(2,n)
+           ave3 (3,ii)=ring(3,n)
         endif
       enddo
       niso=ii      ! short list
@@ -531,20 +528,40 @@
             n=izaid(i)
             izaid(i)=izaid(j)
             izaid(j)=n
+
             xtmp=ave2(i)
             ave2(i)=ave2(j)
             ave2(j)=xtmp
+
+            xtmp=ave3(1,i)
+            ave3(1,i)=ave3(1,j)
+            ave3(1,j)=xtmp
+
+            xtmp=ave3(2,i)
+            ave3(2,i)=ave3(2,j)
+            ave3(2,j)=xtmp
+
+            xtmp=ave3(3,i)
+            ave3(3,i)=ave3(3,j)
+            ave3(3,j)=xtmp
+
           endif
         enddo
       enddo
 
 !--- print short list
 
+!  ring 1 is outside ring -> ring 3 is inside ring
+
+      write (*,'(/,10x,a)')  'zaid    ave           ring1         ring2         ring3'
       do i=1, niso
-         write (*,550) i, izaid(i), ave2(i)
+         write (*,550) i, izaid(i), ave2(i), ave3(:,i)
       enddo
 
+      deallocate(ring)
       deallocate(avepin)
+      deallocate(ave2)
+      deallocate(izaid)
 
       return
       end subroutine ave_pin
