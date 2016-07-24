@@ -427,7 +427,8 @@
 !--- local
 
       integer :: i, j, n, ii
-      integer :: j3, j4
+      integer :: j5, j4
+      integer :: iz, isom
       integer :: niso
       real(8) :: vsum
       real(8) :: xtmp
@@ -480,7 +481,7 @@
       do n=1, nzaid
         if (avepin(n).ne.0.0d0) then
            ii=ii+1    ! number of non-zero values
-           izaid(ii)=zaids(n)/10        ! put in normal zaid format
+           izaid(ii)=zaids(n)
            ave2 (ii)=avepin(n)/vsum
            ave3 (1,ii)=ring(1,n)
            ave3 (2,ii)=ring(2,n)
@@ -489,9 +490,6 @@
       enddo
       niso=ii      ! short list
 
-      do i=1, niso
-        if (izaid(i).eq.8001) izaid(i)=8016
-      enddo
 
 !  remove isotopes that are missing from MCNP library
 !x  **** need to fix this up to use
@@ -511,13 +509,45 @@
 !x60 format ('removing ', i0,' because it is not on mcnp library')
 
 
-!--- remove 500 from depletable isotopes
+!--- convert to MCNP isotopes
 
       do i=1, niso
-        j3=izaid(i)/100
-        j4=izaid(i)/1000
-        j3=j3-j4*10    ! third digit
-        if (j3.ge.5) izaid(i)=izaid(i)-500
+
+        iz=izaid(i)/10
+        isom=izaid(i)-10*iz   ! isomer flag
+
+        j5=iz/100      ! remove 500 from mpact fission product isotopes
+        j4=iz/1000
+        j5=j5-j4*10    ! third digit
+        if (j5.ge.5) iz=iz-500
+
+!  MPACT isomers:
+!  224   47610 1    Ag-110M  add 400 to isomer
+!  233   52627 1    Te-127M  add 400 to isomer
+!  234   52629 1    Te-129M  add 400 to isomer
+!  137   61648 1    Pm-148M  add 400 to isomer
+!  178   95242 1    Pm-242M  add 400 to stable nuclide!
+
+        if (isom.gt.0) then 
+!d        write (0,*) 'debug: isomer ', iz
+          if (iz.eq.47110 .or. iz.eq.52127 .or. iz.eq.52129 .or. iz.eq.61148) then
+             iz=iz+400    ! put in mcnp notation
+          elseif (iz.eq.95242) then   ! do nothing
+             continue
+          else
+             write (*,*) 'zaid = izaid(i)'
+             stop 'unknown isomer in mpact isotope list'
+          endif
+        endif
+
+        if (isom.eq.0 .and. iz.eq.95242) then
+          iz=iz+400   ! add 400 to stable isomer
+        endif
+
+        if (iz.eq.8001) iz=8016
+
+        izaid(i)=iz
+
       enddo
 
 !--- sort
@@ -549,6 +579,15 @@
         enddo
       enddo
 
+!--- look for duplicates (list has already been sorted)
+
+      do i=1, niso-1
+        if (izaid(i).eq.izaid(i+1)) then
+           write (*,*) 'zaid = ', izaid(i)
+           stop 'duplicate zaid found'
+        endif
+      enddo
+
 !--- print short list
 
 !  ring 1 is outside ring -> ring 3 is inside ring
@@ -557,6 +596,17 @@
       do i=1, niso
          write (*,550) i, izaid(i), ave2(i), ave3(:,i)
       enddo
+
+      write (*,*) 'Warning: may have to manually remove 51127 - not in MCNP library'
+      write (*,*) 'Warning: may have to manually remove 65161 - not in MCNP library'
+
+      open (24,file='isolist')
+      do i=1, niso
+        if (izaid(i).eq.51127) cycle
+        if (izaid(i).eq.65161) cycle
+        write (24,550) i, izaid(i), ave2(i)
+      enddo
+      close(24)
 
       deallocate(ring)
       deallocate(avepin)
