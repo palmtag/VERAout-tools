@@ -63,6 +63,14 @@
 !
 !  Note: hid_t is 4 on the linux boxes I tested
 !
+!
+!
+!  8/3/2016 - updated with optional argument to hwrite_double to allow user to update
+!             a dataset instead of creating a new one
+!             Need to port this ability to other write subroutines!!!
+!          
+!
+!
 !=======================================================================
 
 
@@ -1327,14 +1335,18 @@
 !         idims= 100, 20, 16, 0, 0, 0, 0, 0, 0, 0   for 3D array, etc.
 !  xvar    - data array to be written
 !
+!  8/3/2016 - updated with optional argument to allow subroutine to update
+!             a dataset instead of creating a new one
+!
 !=======================================================================
-      subroutine hwrite_double(file_id, dataset, idims, xvar)
+      subroutine hwrite_double(file_id, dataset, idims, xvar, update)
       implicit none
 
       character(len=*), intent(in) :: dataset      ! Dataset name
       integer(hid_t),   intent(in) :: file_id      ! File identifier
       integer,          intent(in) :: idims(10)    ! Dataset dimensions
       real(8),          intent(in) :: xvar(*)      ! multi-dimensional array, treated as 1D
+      logical, optional,intent(in) :: update       ! set to true if update data instead of new data
 
 !--- local
 
@@ -1346,6 +1358,14 @@
       integer  :: irank               ! Dataset rank
       integer  :: ierror              ! Error flag
       integer(hsize_t) :: idimht(10)  ! Dataset dimensions - using HDF size
+
+      logical  :: ifupdate     ! local copy of optional argument
+
+      if (present(update)) then
+        ifupdate=update
+      else
+        ifupdate=.false.
+      endif
 
 !--- calculate rank from idims array
 
@@ -1361,18 +1381,27 @@
       write (*,30) 'dims ', idimht(1:irank)
    30 format (3x,'creating dataspace with ',a, 10i6)
 
-! Create the dataspace (information about array)
+      if (ifupdate) then     ! open existing dataset
+
+        call h5dopen_f(file_id, dataset, dset_id, ierror)
+        if (ierror.ne.0) call h5_fatal('h5dopen_f','ierror')
+
+      else
+
+! Create a new dataspace (information about array)
 
 !*** to create a true Scalar value (not a 1D array with one element), 
 !*** you could use "h5screate_f(H5S_SCALAR_F, dspace_id, ierror)   (not verified)
 
-      call h5screate_simple_f(irank, idimht, dspace_id, ierror)
-      if (ierror.ne.0) call h5_fatal('h5screate_simple','ierror')
+        call h5screate_simple_f(irank, idimht, dspace_id, ierror)
+        if (ierror.ne.0) call h5_fatal('h5screate_simple','ierror')
 
 ! Create the dataset with default properties.
 
-      call h5dcreate_f(file_id, dataset, dtype_id, dspace_id, dset_id, ierror)
-      if (ierror.ne.0) call h5_fatal('h5dcreate_f','ierror')
+        call h5dcreate_f(file_id, dataset, dtype_id, dspace_id, dset_id, ierror)
+        if (ierror.ne.0) call h5_fatal('h5dcreate_f','ierror')
+
+      endif
 
 ! Write dataset
 
@@ -1386,9 +1415,10 @@
 
 ! Terminate access to the data space.  (release dataspace id)
 
-      call h5sclose_f(dspace_id, ierror)
-      if (ierror.ne.0) call h5_fatal('h5sclose_f','ierror')
-
+      if (.not. ifupdate) then
+        call h5sclose_f(dspace_id, ierror)
+        if (ierror.ne.0) call h5_fatal('h5sclose_f','ierror')
+      endif
 
       return
       end subroutine hwrite_double

@@ -236,7 +236,7 @@
       write (*,*)
 
       write (*,'(2a)') 'reading h5 file: ', trim(filename)
-      call h5fopen_f (filename, H5F_ACC_RDWR_F, file_id, ierror)
+      call h5fopen_f (filename, H5F_ACC_RDONLY_F, file_id, ierror)
       if (ierror<0) then
         write(*,*) 'error: H5 input file ',trim(filename),' could not be opened'
         stop
@@ -563,6 +563,60 @@
 !--- close file
 
       call h5fclose_f(file_id, ierror)
+
+!-----------------------------------
+!   Test ability to overwrite data
+!-----------------------------------
+
+      write (*,*)
+      write (*,*)  'Testing ability to overwrite existing data'
+
+      call h5fopen_f (filename, H5F_ACC_RDWR_F, file_id, ierror)
+      if (ierror<0) then
+        write(*,*) 'error: H5 input file ',trim(filename),' could not be opened'
+        stop
+      endif
+
+!--- overwrite double 2D array
+
+      do j=1, ny
+        do i=1, nx
+           power2d(i,j)=i*200.0d0+j
+        enddo
+      enddo
+
+      idims(:)=0     ! clear
+      idims(1)=nx
+      idims(2)=ny
+
+      dsetname = 'power2d'
+      call hwrite_double(file_id, dsetname, idims, power2d, update=.true.)
+
+!--- read back
+
+      dsetname = 'power2d'
+      power2d=0.0d0
+
+      call hdf5_read_double (file_id, dsetname, nx, ny, power2d)
+      nbad=0
+      do j=1, ny
+        do i=1, nx
+          xerr=abs(power2d(i,j)-(i*200.0d0+j))
+          if (xerr.gt.tol) nbad=nbad+1
+        enddo
+      enddo
+      if (nbad.eq.0) then
+        write (*,220) 'read_double2d', 'PASS'
+      else
+        write (*,*) 'number of errors ', nbad
+        nfail=nfail+1
+        write (*,220) 'read_double2d', 'FAIL'
+      endif
+
+!--- close file
+
+      call h5fclose_f(file_id, ierror)
+
 
 !-------------------------------
 !   finished
