@@ -329,7 +329,7 @@
          vsum=0.0d0
 
          write (*,'(/,2a)') ' Assembly ', trim(assm_name)
-         write (*,*) '     Zone Index,  Burnup,  Initial Mass, Volume'
+         write (*,*) '   Zone Index,   Burnup,  Initial Mass, Volume'
          do n=1, nzone
            write (*,540) n, zoneindx(n), zoneburn(n), zonemass(n), zonevolm(n)
            izsum=izsum+zoneindx(n)
@@ -372,7 +372,7 @@
 
 !   calculate average isotopics over assembly
 
-         call ave_pin(nzone, ndat, nzaid, zoneindx, zonevolm, nucid, fcomp, zaids)
+         if (nz.eq.1) call ave_pin(nzone, ndat, nzaid, zoneindx, zonevolm, nucid, fcomp, zaids)
 
 !--- end of assembly
 
@@ -438,6 +438,7 @@
       real(8), allocatable :: ave2(:)    ! short list
       real(8), allocatable :: ave3(:,:)  ! short list in first three rings
       integer, allocatable :: izaid(:)   ! short list
+      integer, allocatable :: isave(:)   ! short list
 
 
 !--- start
@@ -447,6 +448,7 @@
       allocate (ave2(nzaid))       ! short list
       allocate (ave3(3,nzaid))     ! short list
       allocate (izaid(nzaid))      ! short list
+      allocate (isave(nzaid))      ! short list
       avepin=0.0d0
       ring=0.0d0
 
@@ -464,6 +466,7 @@
       if (ii.ne.ndat) stop 'ndat sum error'
 
   550 format (i6, i8, 1p, 8e14.6)
+  560 format (i6, 2i8, 1p, 8e14.6)
 
       ii=0
       do n=1, 3    ! **** only first 3 rings
@@ -490,26 +493,9 @@
       enddo
       niso=ii      ! short list
 
-
-!  remove isotopes that are missing from MCNP library
-!x  **** need to fix this up to use
-
-!x    do i=1, niso
-!x      if (izaid(i).eq.47110 .or. &
-!x          izaid(i).eq.51127 .or. &
-!x          izaid(i).eq.52127 .or. &
-!x          izaid(i).eq.52129 .or. &
-!x          izaid(i).eq.65161 ) then
-!x             write (*,60) izaid(i)
-!x             izaid(i)=0
-!x             ave2(i)=0.0d0
-!x      endif
-!x    enddo
-!x50 format ('removing ',a,' isotope ', i0)
-!x60 format ('removing ', i0,' because it is not on mcnp library')
-
-
 !--- convert to MCNP isotopes
+
+      isave=izaid     ! save copy of original MPACT zaids
 
       do i=1, niso
 
@@ -559,6 +545,10 @@
             izaid(i)=izaid(j)
             izaid(j)=n
 
+            n=isave(i)
+            isave(i)=isave(j)
+            isave(j)=n
+
             xtmp=ave2(i)
             ave2(i)=ave2(j)
             ave2(j)=xtmp
@@ -592,19 +582,19 @@
 
 !  ring 1 is outside ring -> ring 3 is inside ring
 
-      write (*,'(/,10x,a)')  'zaid    ave           ring1         ring2         ring3'
+      write (*,'(/,9x,a)')  'mpact    mcnp    ave           reg 1 (out)   reg 2         reg 3 (in)'
       do i=1, niso
-         write (*,550) i, izaid(i), ave2(i), ave3(:,i)
+         write (*,560) i, isave(i), izaid(i), ave2(i), ave3(:,i)
       enddo
 
       write (*,*) 'Warning: may have to manually remove 51127 - not in MCNP library'
       write (*,*) 'Warning: may have to manually remove 65161 - not in MCNP library'
 
-      open (24,file='isolist')
+      open (24,file='isolist3')
       do i=1, niso
         if (izaid(i).eq.51127) cycle
         if (izaid(i).eq.65161) cycle
-        write (24,550) i, izaid(i), ave2(i)
+        write (24,550) i, izaid(i), ave2(i), ave3(:,i)
       enddo
       close(24)
 
@@ -612,6 +602,7 @@
       deallocate(avepin)
       deallocate(ave2)
       deallocate(izaid)
+      deallocate(isave)
 
       return
       end subroutine ave_pin
