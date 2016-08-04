@@ -24,6 +24,7 @@
 !-----------------------------------------------------------------------
 
       logical  :: ifdata=.false.         ! print long data
+      logical  :: ifsmear=.false.        ! option to smear isotopic data
 
       integer  :: iargs        ! number of command line arguments
       integer  :: k, n
@@ -33,7 +34,7 @@
 
       integer  :: itype        ! temp variable
       integer  :: ndim         ! temp variable
-      integer  :: idim(10)     ! temp variable
+      integer  :: idims(10)     ! temp variable
 
       logical  :: ifxst
 
@@ -43,10 +44,12 @@
 !!    character(len=10)  :: symmetry
       character(len=80)  :: inputfile
       character(len=80)  :: statename
+      character(len=10)  :: clopt           ! command line option
 
       integer(hid_t)     :: file_id         ! HDF file ID
 
       real(8)  :: vsum
+      real(8), parameter :: pi=3.1415926535897932384d0
 
 ! restart file data
 
@@ -87,18 +90,32 @@
 
       iargs = command_argument_count()
       if (iargs.lt.2) then
-        write (*,*) 'usage:  mpactres.exe [restart file] [statepoint name] {data}'
-        write (*,*)
-        write (*,*) 'For example:'
-        write (*,*) '> mpactres.exe restart.h5 EXP310'
-        write (*,*)
+        write (0,*) 'usage:  mpactres.exe [restart file] [statepoint name] {data} {smear}'
+        write (0,*)
+        write (0,*) 'special options:'
+        write (0,*) '  {data}  will dump a lot of raw data'
+        write (0,*) '  {smear} will smear all of the isotopics in a pincell'
+        write (0,*)
+        write (0,*) 'Example:'
+        write (0,*) '> mpactres.exe restart.h5 EXP310'
+        write (0,*)
         stop
       endif
 
       call get_command_argument(1,inputfile)
       call get_command_argument(2,statename)
 
-      if (iargs.ge.3) ifdata=.true.
+      do ii=3, iargs
+        call get_command_argument(ii,clopt)
+        if (clopt.eq.'data') then
+          ifdata=.true.
+        elseif (clopt.eq.'smear') then
+          ifsmear=.true.
+        else
+          write (0,*) 'command line option: ', trim(clopt)
+          stop 'unknown command line option'
+        endif
+      enddo
 
       write (*,'(2a)') 'reading restart file: ', trim(inputfile)
       write (*,'(2a)') 'statepoint: ', trim(statename)
@@ -114,10 +131,13 @@
         write (*,'(3a)') 'error: input file ',trim(inputfile),' does not exist'
         stop
       endif
-      call h5fopen_f (inputfile, H5F_ACC_RDONLY_F, file_id, ierror)   ! read only
+      if (ifsmear) then
+        call h5fopen_f (inputfile, H5F_ACC_RDWR_F,   file_id, ierror)   ! open read-write
+      else
+        call h5fopen_f (inputfile, H5F_ACC_RDONLY_F, file_id, ierror)   ! open read only
+      endif
       if (ierror.lt.0) then
-        write (*,'(3a)') 'error: H5 input file ',trim(inputfile), &
-                   ' could not be opened'
+        write (*,'(3a)') 'error: H5 input file ',trim(inputfile),' could not be opened'
         stop
       endif
 
@@ -164,17 +184,17 @@
       dataset=trim(group_name)//'/version'
       call hdf5_read_integer(file_id, dataset, iver)
 
-!  if program crashes on next read, it may be that the
+!  if program crashes on next read, it is probably because the
 !  HDF library does not have compression installed
 
       dataset=trim(group_name)//'/ZAIDs'
-      call h5info(file_id, dataset, itype, ndim, idim)
+      call h5info(file_id, dataset, itype, ndim, idims)
       if (ndim.ne.1) then
         write (*,*) '*** ndim = ', ndim
-        write (*,*) '*** idim = ', idim
+        write (*,*) '*** idim = ', idims
         stop 'invalid dimensions in zaids'
       endif
-      nzaid=idim(1)
+      nzaid=idims(1)
       allocate (zaids(nzaid))
       call hdf5_read_integer(file_id, dataset, nzaid, k, zaids)
 
@@ -306,8 +326,8 @@
          write (*,*)
 
          dataset=trim(group_name)//'/'//trim(assm_name)//'/Isotope Index Map'
-         call h5info(file_id, dataset, itype, ndim, idim)
-         nzone=idim(1)
+         call h5info(file_id, dataset, itype, ndim, idims)
+         nzone=idims(1)
 
          allocate (zoneindx(nzone))
          allocate (zoneburn(nzone))
@@ -343,10 +363,10 @@
          write (*,*) 'total volume = ', vsum
 
          if (nxpin.eq.17 .and. nypin.eq.17) then
-           write (*,*) 'debug: temp vol  ', 3.141592653589d0*0.4096d0*0.4096d0*264.0d0
+           write (*,*) 'debug: temp vol  ', pi*0.4096d0*0.4096d0*264.0d0
          endif
          if (nxpin.eq.1 .and. nypin.eq.1) then
-           write (*,*) 'debug: temp vol  ', 3.141592653589d0*0.4096d0*0.4096d0
+           write (*,*) 'debug: temp vol  ', pi*0.4096d0*0.4096d0
          endif
 
 !--- Nuclide distributions
@@ -370,9 +390,30 @@
          endif
      550 format (i10, i8, 1p, 2e14.6)
 
+!--- smear pincell isotopics
+
+         if (ifsmear) then
+           call pin_smear(nzone, ndat, nzaid, zoneindx, zonevolm, zoneburn, zonemass, nucid, fcomp)
+
+     ! write new exposure
+
+           dataset=trim(group_name)//'/'//trim(assm_name)//'/XS Region Burnup'
+           idims(:)=0          ! dimensions
+           idims(1)=nzone
+           call hwrite_double (file_id, dataset, idims, zoneburn, update=.true.)
+
+     ! write new densities
+
+           dataset=trim(group_name)//'/'//trim(assm_name)//'/Fuel Composition'
+           idims(:)=0          ! dimensions
+           idims(1)=ndat
+           call hwrite_double (file_id, dataset, idims, fcomp, update=.true.)
+
+         endif
+
 !   calculate average isotopics over assembly
 
-         if (nz.eq.1) call ave_pin(nzone, ndat, nzaid, zoneindx, zonevolm, nucid, fcomp, zaids)
+         if (nz.eq.1) call pin_ave(nzone, ndat, nzaid, zoneindx, zonevolm, nucid, fcomp, zaids)
 
 !--- end of assembly
 
@@ -411,7 +452,7 @@
 !   and print a list of mcnp-compatible isotopes
 !
 !=======================================================================
-      subroutine ave_pin(nzone, ndat, nzaid, zoneindx, zonevolm, nucid, fcomp, zaids)
+      subroutine pin_ave(nzone, ndat, nzaid, zoneindx, zonevolm, nucid, fcomp, zaids)
       implicit none
 
       integer, intent(in) :: nzone
@@ -526,7 +567,7 @@
 !  137   61648 1    Pm-148M  add 400 to isomer
 !  178   95242 1    Pm-242M  add 400 to stable nuclide!
 
-        if (isom.gt.0) then 
+        if (isom.gt.0) then
 !d        write (0,*) 'debug: isomer ', iz
           if (iz.eq.47110 .or. iz.eq.52127 .or. iz.eq.52129 .or. iz.eq.61148) then
              iz=iz+400    ! put in mcnp notation
@@ -617,5 +658,88 @@
       deallocate(isave)
 
       return
-      end subroutine ave_pin
+      end subroutine pin_ave
+
+!=======================================================================
+!
+!   Subroutine to smear the isotopics and exposure over the entire volume
+!
+!=======================================================================
+      subroutine pin_smear(nzone, ndat, nzaid, zoneindx, zonevolm, zoneburn, zonemass, nucid, fcomp)
+      implicit none
+
+      integer, intent(in) :: nzone
+      integer, intent(in) :: ndat
+      integer, intent(in) :: nzaid
+
+      integer, intent(in)    :: zoneindx(nzone)
+      real(8), intent(in)    :: zonevolm(nzone)
+      real(8), intent(inout) :: zoneburn(nzone)
+      real(8), intent(in)    :: zonemass(nzone)
+      integer, intent(in)    :: nucid(ndat)
+      real(8), intent(inout) :: fcomp(ndat)
+
+!--- local
+
+      integer :: i, n, ii
+      real(8) :: vsum
+      real(8) :: xmass
+      real(8) :: xburn
+
+      real(8), allocatable :: avepin(:)  ! long list
+
+!--- start
+
+      write (*,*)
+      write (*,*) ' ****** special option to smear isotopics ******'
+      write (*,*) '    ndat = ', ndat
+      write (*,*) '    nzone= ', nzone
+
+      allocate (avepin(nzaid))
+      avepin=0.0d0
+
+!--- find average over all zones
+
+      xburn=0.0d0
+      xmass=0.0d0
+      vsum=0.0d0
+      ii=0
+      do n=1, nzone
+        do i=1, zoneindx(n)
+           ii=ii+1
+           avepin(nucid(ii))=avepin(nucid(ii)) + fcomp(ii)*zonevolm(n)
+        enddo
+        vsum=vsum+zonevolm(n)
+        xburn=xburn + zoneburn(n)*zonevolm(n)       ! ******* should be mass weighted as well, but doesn't matter for pincell
+        xmass=xmass + zonemass(n)*zonevolm(n)       ! ******* total mass or density??
+      enddo
+      if (ii.ne.ndat) stop 'ndat sum error'
+
+
+      avepin=avepin/vsum
+      xburn=xburn/vsum
+      xmass=xmass/vsum
+
+      write (*,*) 'volume sum =    ', vsum
+      write (*,*) 'average mass    ', xmass
+      write (*,*) 'average burnup  ', xburn
+
+!--- overwrite existing compositions with average
+
+      ii=0
+      do n=1, nzone
+        do i=1, zoneindx(n)
+           ii=ii+1
+           fcomp(ii)=avepin(nucid(ii))
+        enddo
+        zoneburn(n)=xburn
+      enddo
+      if (ii.ne.ndat) stop 'ndat sum error'
+
+!--- finish
+
+      deallocate(avepin)
+
+      return
+      end subroutine pin_smear
 
