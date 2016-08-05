@@ -469,7 +469,7 @@
 
       integer :: i, j, n, ii
       integer :: j5, j4
-      integer :: iz, isom
+      integer :: iz, isom, ia
       integer :: niso
       real(8) :: vsum
       real(8) :: xtmp
@@ -493,6 +493,9 @@
         'Lu','Hf','Ta','W ','Re','Os','Ir','Pt','Au','Hg', &
         'Tl','Pb','Bi','Po','At','Rn','Fr','Ra','Ac','Th', &
         'Pa','U ','Np','Pu','Am','Cm','Bk','Cf','Es','Fm' /
+
+      character(len=8) :: label
+      character(len=1) :: chisom
 
 !--- start
 
@@ -519,7 +522,7 @@
       if (ii.ne.ndat) stop 'ndat sum error'
 
   550 format (i6, i8, 1p, 8e14.6)
-  560 format (i6, 2i8, 1p, 8e14.6)
+  560 format (i6, 1x, a8, 2i8, 1p, 8e14.6)
 
       ii=0
       do n=1, 3    ! **** only first 3 rings
@@ -635,9 +638,24 @@
 
 !  ring 1 is outside ring -> ring 3 is inside ring
 
-      write (*,'(/,9x,a)')  'mpact    mcnp    ave           reg 1 (out)   reg 2         reg 3 (in)'
+      write (*,'(/,7x,a)')  'Label      MPACT    MCNP   Average       Reg 1 (out)   Reg 2         Reg 3 (in)'
       do i=1, niso
-         write (*,560) i, isave(i), izaid(i), ave2(i), ave3(:,i)
+
+         chisom=' '
+         ii=isave(i)/10
+         ia=isave(i)-ii*10   ! isomer flag
+         if (ia.eq.0) then
+           chisom=' '
+         else
+           chisom='m'
+         endif
+         if (ii.eq.8001) ii=8016    ! special oxygen name
+         iz=ii/1000                 ! z-number
+         ia=ii-iz*1000              ! atomic mass
+         if (ia.gt.500) ia=ia-500   ! mpact convention
+         write (label,'(2a,i0,a)') trim(element_name(iz)), '-', ia, chisom
+
+         write (*,560) i, label, isave(i), izaid(i), ave2(i), ave3(:,i)
       enddo
 
       write (*,*) 'Warning: may have to manually remove 51127 - not in MCNP library'
