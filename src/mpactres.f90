@@ -468,9 +468,8 @@
 !--- local
 
       integer :: i, j, n, ii
-      integer :: j5, j4
-      integer :: iz, isom, ia
       integer :: niso
+      integer :: isave
       real(8) :: vsum
       real(8) :: xtmp
 
@@ -479,23 +478,8 @@
       real(8), allocatable :: ave2(:)    ! short list
       real(8), allocatable :: ave3(:,:)  ! short list in first three rings
       integer, allocatable :: izaid(:)   ! short list
-      integer, allocatable :: isave(:)   ! short list
-
-      character(len=2) :: element_name(100)
-      data element_name / &
-        'H ','He','Li','Be','B ','C ','N ','O ','F ','Ne', &
-        'Na','Mg','Al','Si','P ','S ','Cl','Ar','K ','Ca', &
-        'Sc','Ti','V ','Cr','Mn','Fe','Co','Ni','Cu','Zn', &
-        'Ga','Ge','As','Se','Br','Kr','Rb','Sr','Y ','Zr', &
-        'Nb','Mo','Tc','Ru','Rh','Pd','Ag','Cd','In','Sn', &
-        'Sb','Te','I ','Xe','Cs','Ba','La','Ce','Pr','Nd', &
-        'Pm','Sm','Eu','Gd','Tb','Dy','Ho','Er','Tm','Yb', &
-        'Lu','Hf','Ta','W ','Re','Os','Ir','Pt','Au','Hg', &
-        'Tl','Pb','Bi','Po','At','Rn','Fr','Ra','Ac','Th', &
-        'Pa','U ','Np','Pu','Am','Cm','Bk','Cf','Es','Fm' /
 
       character(len=8) :: label
-      character(len=1) :: chisom
 
 !--- start
 
@@ -504,7 +488,6 @@
       allocate (ave2(nzaid))       ! short list
       allocate (ave3(3,nzaid))     ! short list
       allocate (izaid(nzaid))      ! short list
-      allocate (isave(nzaid))      ! short list
       avepin=0.0d0
       ring=0.0d0
 
@@ -549,49 +532,6 @@
       enddo
       niso=ii      ! short list
 
-!--- convert to MCNP isotopes
-
-      isave=izaid     ! save copy of original MPACT zaids
-
-      do i=1, niso
-
-        iz=izaid(i)/10
-        isom=izaid(i)-10*iz   ! isomer flag
-
-        j5=iz/100      ! remove 500 from mpact fission product isotopes
-        j4=iz/1000
-        j5=j5-j4*10    ! third digit
-        if (j5.ge.5) iz=iz-500
-
-!  MPACT isomers:
-!  224   47610 1    Ag-110M  add 400 to isomer
-!  233   52627 1    Te-127M  add 400 to isomer
-!  234   52629 1    Te-129M  add 400 to isomer
-!  137   61648 1    Pm-148M  add 400 to isomer
-!  178   95242 1    Pm-242M  add 400 to stable nuclide!
-
-        if (isom.gt.0) then
-!d        write (0,*) 'debug: isomer ', iz
-          if (iz.eq.47110 .or. iz.eq.52127 .or. iz.eq.52129 .or. iz.eq.61148) then
-             iz=iz+400    ! put in mcnp notation
-          elseif (iz.eq.95242) then   ! do nothing
-             continue
-          else
-             write (*,*) 'zaid = izaid(i)'
-             stop 'unknown isomer in mpact isotope list'
-          endif
-        endif
-
-        if (isom.eq.0 .and. iz.eq.95242) then
-          iz=iz+400   ! add 400 to stable isomer
-        endif
-
-        if (iz.eq.8001) iz=8016
-
-        izaid(i)=iz
-
-      enddo
-
 !--- sort
 
       do i=1, niso-1
@@ -600,10 +540,6 @@
             n=izaid(i)
             izaid(i)=izaid(j)
             izaid(j)=n
-
-            n=isave(i)
-            isave(i)=isave(j)
-            isave(j)=n
 
             xtmp=ave2(i)
             ave2(i)=ave2(j)
@@ -641,27 +577,16 @@
       write (*,'(/,7x,a)')  'Label      MPACT    MCNP   Average       Reg 1 (out)   Reg 2         Reg 3 (in)'
       do i=1, niso
 
-         chisom=' '
-         ii=isave(i)/10
-         ia=isave(i)-ii*10   ! isomer flag
-         if (ia.eq.0) then
-           chisom=' '
-         else
-           chisom='m'
-         endif
-         if (ii.eq.8001) ii=8016    ! special oxygen name
-         iz=ii/1000                 ! z-number
-         ia=ii-iz*1000              ! atomic mass
-         if (ia.gt.500) ia=ia-500   ! mpact convention
-         write (label,'(2a,i0,a)') trim(element_name(iz)), '-', ia, chisom
+         isave=izaid(i)                            ! save mpact label
+         call mcnp_zaid(isave, izaid(i), label)    ! convert to mcnp format
 
-         write (*,560) i, label, isave(i), izaid(i), ave2(i), ave3(:,i)
+         write (*,560) i, label, isave, izaid(i), ave2(i), ave3(:,i)
       enddo
 
       write (*,*) 'Warning: may have to manually remove 51127 - not in MCNP library'
       write (*,*) 'Warning: may have to manually remove 65161 - not in MCNP library'
 
-      open (24,file='isolist3')
+      open (24,file='isolist3')      ! save mcnp zaids to file
       do i=1, niso
         if (izaid(i).eq.51127) cycle
         if (izaid(i).eq.65161) cycle
@@ -673,10 +598,96 @@
       deallocate(avepin)
       deallocate(ave2)
       deallocate(izaid)
-      deallocate(isave)
 
       return
       end subroutine pin_ave
+
+!=======================================================================
+!
+!   Subroutine to convert MPACT zaid to MCNP zaid and return label
+!
+!   Warning: may have to manually remove 51127 - not in MCNP library
+!   Warning: may have to manually remove 65161 - not in MCNP library
+!
+!=======================================================================
+      subroutine mcnp_zaid(izinp, izaid, label)
+      implicit none
+
+      integer, intent(in)  :: izinp            ! mpact zaid
+      integer, intent(out) :: izaid            ! mcnp zaid
+      character(len=*), intent(out) :: label
+
+      integer :: isom, ia, ip
+
+      character(len=1) :: chisom    ! isomer character flag
+
+      character(len=2) :: element_name(100)
+      data element_name / &
+        'H ','He','Li','Be','B ','C ','N ','O ','F ','Ne', &
+        'Na','Mg','Al','Si','P ','S ','Cl','Ar','K ','Ca', &
+        'Sc','Ti','V ','Cr','Mn','Fe','Co','Ni','Cu','Zn', &
+        'Ga','Ge','As','Se','Br','Kr','Rb','Sr','Y ','Zr', &
+        'Nb','Mo','Tc','Ru','Rh','Pd','Ag','Cd','In','Sn', &
+        'Sb','Te','I ','Xe','Cs','Ba','La','Ce','Pr','Nd', &
+        'Pm','Sm','Eu','Gd','Tb','Dy','Ho','Er','Tm','Yb', &
+        'Lu','Hf','Ta','W ','Re','Os','Ir','Pt','Au','Hg', &
+        'Tl','Pb','Bi','Po','At','Rn','Fr','Ra','Ac','Th', &
+        'Pa','U ','Np','Pu','Am','Cm','Bk','Cf','Es','Fm' /
+
+!--- start
+
+      label=' '
+      chisom=' '
+
+!--- mpact zaid has an extra digit at the end for the isomer, like "922350"
+!--- and adds 500 to the atomic mass for fission products
+
+      izaid=izinp/10
+      isom=izinp-10*izaid   ! isomer flag
+
+      if (izaid.eq.8001) izaid=8016    ! special nomenclature for hydrogen in fuel flag
+
+      ip=izaid/1000         ! number of protons
+      ia=izaid - ip*1000    ! atomic mass
+      if (ia.gt.500) then
+        ia=ia-500           ! remove special mpact nomenclature
+        izaid=izaid-500     ! remove special mpact nomenclature
+      endif
+
+!  at this point zaid is "clean" with no special mpact or mcnp notation
+
+!  MPACT isomers:
+!  224   47610 1    Ag-110M  add 400 to isomer
+!  233   52627 1    Te-127M  add 400 to isomer
+!  234   52629 1    Te-129M  add 400 to isomer
+!  137   61648 1    Pm-148M  add 400 to isomer
+!  178   95242 1    Pm-242M  add 400 to stable nuclide!
+
+!--- put in mcnp notation, add 400 to *some* isomers
+
+      if (isom.gt.0) then
+!d      write (0,*) 'debug: isomer ', izaid
+        if (izaid.eq.47110 .or. izaid.eq.52127 .or. izaid.eq.52129 .or. izaid.eq.61148) then
+           izaid=izaid+400
+        elseif (izaid.eq.95242) then   ! do nothing
+           continue
+        else
+           write (*,*) 'zaid = izinp'
+           stop 'unknown isomer in mpact isotope list'
+        endif
+        chisom='m'
+      endif
+
+      if (isom.eq.0 .and. izaid.eq.95242) then
+        izaid=izaid+400   ! add 400 to stable isomer
+      endif
+
+!--- create label
+
+      write (label,'(2a,i0,a)') trim(element_name(ip)), '-', ia, chisom
+
+      return
+      end subroutine mcnp_zaid
 
 !=======================================================================
 !
