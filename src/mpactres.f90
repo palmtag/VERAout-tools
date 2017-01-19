@@ -18,6 +18,7 @@
 !  2016/03/02 - original file
 !  2016/07/13 - add average isotopic edits (intendend for a pincell)
 !  2016/07/23 - add isotopic edits of first 3 rings
+!  2017/01/19 - add statepoint edits
 !
 !  Use utility "h5dump -H restart.h5" to see format of restart file
 !
@@ -119,6 +120,7 @@
 
       write (*,'(2a)') 'reading restart file: ', trim(inputfile)
       write (*,'(2a)') 'statepoint: ', trim(statename)
+      write (*,*)
 
 !--- initialize fortran interface (required)
 
@@ -199,21 +201,32 @@
       call hdf5_read_integer(file_id, dataset, nzaid, k, zaids)
 
       write (*,*)
-      write (*,*) '  statename ', trim(statename)
-      write (*,*) '  exposure ', exposure
-      write (*,*) '  dep hours', dephours
+      write (*,*) 'Statename   ', trim(statename)
+      write (*,134) 'exposure ', exposure
+      write (*,134) 'dep hours', dephours
       write (*,130) 'nxasy    ', nxasy
       write (*,130) 'nyasy    ', nyasy
       write (*,130) 'version  ', iver
       write (*,130) 'nzaid    ', nzaid
+      write (*,*)
 
-  130 format (3x,a,i6)
+  130 format (3x,a,2x,i8)
+  134 format (3x,a,2x,f12.6)
 
       if (ifdata) then
         write (*,*)
         write (*,*) 'Zaids (by statepoint)'
         write (*,*) zaids(:)
       endif
+
+!--- read STATE block  (may not exist on files before mid-2016)
+
+      dataset=trim(group_name)//'/STATE'
+      call h5lexists_f(file_id, group_name, ifxst, ierror)
+      if (ifxst) then
+        call readstate(file_id, dataset)
+      endif
+
 
 !-------------------------
 !  Loop over assemblies
@@ -283,7 +296,7 @@
          write (*,130) 'rotation', irot
          write (*,*) '  Initial Heavy Metal Mass', amass
 
-         allocate (axial(nz))
+         allocate (axial(nz+1))
          allocate (axmass(nz))
          allocate (axialmesh(nz))
 
@@ -299,7 +312,7 @@
          write (*,*)
 
          dataset=trim(group_name)//'/'//trim(assm_name)//'/Axial Heights'
-         call hdf5_read_double(file_id, dataset, nz, n, axial)      ! n will be set to naxial
+         call hdf5_read_double(file_id, dataset, nz+1, n, axial)      ! n will be set to naxial
 
          dataset=trim(group_name)//'/'//trim(assm_name)//'/Axial Heavy Metal Mass'
          call hdf5_read_double(file_id, dataset, nz, k, axmass)     ! n will be set to naxial
@@ -310,8 +323,10 @@
          write (*,'(2a)') ' Assembly ', trim(assm_name)
          write (*,'(3x,a)') 'K, axial heights, axial mesh, axial mass'
          do k=nz, 1, -1
-           write (*,'(i4,2f10.4,f12.6)') k, axial(k), axialmesh(k), axmass(k)
+           write (*,'(i4,2f10.4,f12.6)') k, axial(k+1), axialmesh(k), axmass(k)
          enddo
+         k=0
+           write (*,'(i4,2f10.4,f12.6)') k, axial(k+1)
 
 
 !--- depletion region data
@@ -350,13 +365,23 @@
 
          write (*,'(/,2a)') ' Assembly ', trim(assm_name)
          write (*,*) '   Zone Index,   Burnup,  Initial Mass, Volume'
-         do n=1, nzone
-           write (*,540) n, zoneindx(n), zoneburn(n), zonemass(n), zonevolm(n)
-           izsum=izsum+zoneindx(n)
-           vsum =vsum +zonevolm(n)
-         enddo
+         if (nzone.le.1000 .or. ifdata) then
+           do n=1, nzone
+             write (*,540) n, zoneindx(n), zoneburn(n), zonemass(n), zonevolm(n)
+             izsum=izsum+zoneindx(n)
+             vsum =vsum +zonevolm(n)
+           enddo
+         else
+           do n=1, nzone      ! skip edits for large problems
+             izsum=izsum+zoneindx(n)
+             vsum =vsum +zonevolm(n)
+           enddo
+           write (*,*) '   *** zone edits not written due to large size ***'
+         endif
      540 format (i6, i6, f12.3, 1p, 3e14.5)
 
+         write (*,*)
+         write (*,*) 'number of zones     = ', nzone
          write (*,*) 'sum of zone indexes = ', izsum
          if (izsum.ne.ndat) stop 'sum of zone indexes does not match ndat'
 
@@ -771,4 +796,68 @@
 
       return
       end subroutine pin_smear
+!=======================================================================
+!
+!  Subroutine to read statepoint data (may not exist on files before mid-2016)
+!
+!=======================================================================
+      subroutine readstate(file_id, group_name)
+      use  hdf5
+      use  mod_hdftools
+      implicit none
+
+      integer(hid_t),   intent(in) :: file_id         ! HDF file ID
+      character(len=*), intent(in) :: group_name
+
+!--- local
+
+      integer, parameter :: maxlist=14
+
+      integer :: i
+      integer :: istate
+      character(len=120) :: dataset         ! HDF dataset name
+      character(len=20) :: dlist(maxlist)
+      character(len=10) :: dunit(maxlist)
+      real(8) :: xx(maxlist)
+
+      dunit(:)=' '
+
+      dlist( 1)='b10'
+      dlist( 2)='boron';       dunit(2)='ppm'
+      dlist( 3)='exposure'
+      dlist( 4)='exposure_efpd'
+      dlist( 5)='exposure_hours'
+      dlist( 6)='flow'
+      dlist( 7)='kcrit'
+      dlist( 8)='modden';      dunit(8)='g/cc'
+      dlist( 9)='power'
+      dlist(10)='pressure'
+      dlist(11)='rated_flow'
+      dlist(12)='rated_power'
+      dlist(13)='tfuel';       dunit(13)='K'
+      dlist(14)='tinlet';      dunit(14)='C'
+
+      dataset=trim(group_name)//'/iState'
+      call hdf5_read_integer(file_id, dataset, istate)
+
+      do i=1, maxlist
+        dataset=trim(group_name)//'/'//trim(dlist(i))
+        call hdf5_read_double(file_id, dataset, xx(i))
+      enddo
+
+      write (*,*)
+      write (*,*) 'Statepoint variables:'
+      write (*,120) 'iState         ', istate
+      do i=1, maxlist
+        write (*,122) dlist(i), xx(i), trim(dunit(i))
+      enddo
+      write (*,*)
+
+  120 format (3x,a,i6)
+  122 format (3x,a,f12.6,1x,a)
+
+
+      return
+      end subroutine readstate
+!=======================================================================
 

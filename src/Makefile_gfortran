@@ -18,28 +18,28 @@ HDFOPT =
 all:    hunittest.exe makehdf.exe mpactread.exe mpactxmf.exe mpactres.exe ctfread.exe veradiff.exe getscaler.exe
 
 mpactread.exe: Mod_hdftools.o mpactread.o output_utils.o
-	$(FC) $(FFLAGS) Mod_hdftools.o mpactread.o output_utils.o $(HDFOPT) -o $@
+	$(FC) $(FFLAGS) $^ $(HDFOPT) -o $@
 
 mpactxmf.exe: Mod_hdftools.o mpactxmf.o
-	$(FC) $(FFLAGS) Mod_hdftools.o mpactxmf.o $(HDFOPT) -o $@
+	$(FC) $(FFLAGS) $^ $(HDFOPT) -o $@
 
 mpactres.exe: Mod_hdftools.o mpactres.o
-	$(FC) $(FFLAGS) Mod_hdftools.o mpactres.o $(HDFOPT) -o $@
+	$(FC) $(FFLAGS) $^ $(HDFOPT) -o $@
 
 ctfread.exe: Mod_hdftools.o ctfread.o output_utils.o
-	$(FC) $(FFLAGS) Mod_hdftools.o ctfread.o output_utils.o $(HDFOPT) -o $@
+	$(FC) $(FFLAGS) $^ $(HDFOPT) -o $@
 
 hunittest.exe: Mod_hdftools.o hunittest.o
-	$(FC) $(FFLAGS) Mod_hdftools.o hunittest.o $(HDFOPT) -o $@
+	$(FC) $(FFLAGS) $^ $(HDFOPT) -o $@
 
 makehdf.exe: Mod_hdftools.o makehdf.o
-	$(FC) $(FFLAGS) Mod_hdftools.o makehdf.o $(HDFOPT) -o $@
+	$(FC) $(FFLAGS) $^ $(HDFOPT) -o $@
 
 veradiff.exe: Mod_hdftools.o veradiff.o
-	$(FC) $(FFLAGS) Mod_hdftools.o veradiff.o $(HDFOPT) -o $@
+	$(FC) $(FFLAGS) $^ $(HDFOPT) -o $@
 
 getscaler.exe: Mod_hdftools.o getscaler.o
-	$(FC) $(FFLAGS) Mod_hdftools.o getscaler.o $(HDFOPT) -o $@
+	$(FC) $(FFLAGS) $^ $(HDFOPT) -o $@
 
 .f90.o:
 	$(FC) $(FFLAGS) -c $*.f90
