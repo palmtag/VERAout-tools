@@ -126,7 +126,6 @@
         enddo
       enddo
 
-
       return
       end subroutine stat3d
 !=======================================================================
@@ -223,20 +222,20 @@
 
 !--- check for very small values
 
-      do k=1, kd
-        do ia=1, nassm
-          do j=1, npin
-            do i=1, npin
-              pp=power(i,j,k,ia)
-              if (pp.gt.0.0d0) then
-                if (pp.lt.zave*1.0d-4) then
-                   write (*,*) 'small value detected ', i, j, k, ia, pp
-                endif
-              endif
-            enddo
-          enddo
-        enddo
-      enddo
+!     do k=1, kd
+!       do ia=1, nassm
+!         do j=1, npin
+!           do i=1, npin
+!             pp=power(i,j,k,ia)
+!             if (pp.gt.0.0d0) then
+!               if (pp.lt.zave*1.0d-4) then
+!                  write (*,*) 'small value detected ', i, j, k, ia, pp
+!               endif
+!             endif
+!           enddo
+!         enddo
+!       enddo
+!     enddo
 
 
       return
@@ -324,6 +323,7 @@
 
 !--- calculate maximum and set the format correctly
 
+      pp=0.0d0
       zmax=0.0d0
       do j=1, npin
         do i=1, npin

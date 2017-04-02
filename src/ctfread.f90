@@ -23,6 +23,7 @@
 !  2015/04/03 - Add DNB edits
 !  2015/04/06 - Add core symmetry and core map
 !  2015/12/09 - Update distributions
+!  2017/04/01 - Update distributions
 !
 !  There are still some issues that need to be worked out:
 !    * There are some cases that have a very small power in non-fuel regions
@@ -48,8 +49,10 @@
       integer            :: lltfu
       integer            :: llpow
 
+      real(8)            :: prated
       real(8)            :: zsum
       real(8)            :: xtemp
+      real(8)            :: qoi1, qoi2, qoi3, qoi4, qoi5
 
       logical            :: ifxst           ! flag if file or dataset exists
       logical            :: ifdebug=.false. ! debug flag
@@ -58,7 +61,7 @@
       character(len=22)  :: state_name      ! HDF group name for STATE
       character(len=22)  :: group_name      ! HDF group name for CORE
 
-      integer, parameter :: maxdist=19
+      integer, parameter :: maxdist=8    ! was 19
       character(len=40)  :: dist_label(maxdist)
       logical            :: dist_print(maxdist)
       logical            :: dist_chan (maxdist)   ! channel array flag (i.e. not pin array)
@@ -82,7 +85,7 @@
       real(8), allocatable :: tdist(:,:,:,:)
 
       real(8), allocatable :: pow2d(:,:,:)
-      real(8), allocatable :: charea(:,:,:)    ! channel areas
+      real(8), allocatable :: charea(:,:,:,:)    ! channel areas
 
       real(8), allocatable :: power(:,:,:,:)
       real(8), allocatable :: tfuel(:,:,:,:)
@@ -104,34 +107,39 @@
 
       i=i+1
       dist_label(i) ="pin_powers"     ! no units
-      i=i+1
-      dist_label(i) ="Rod_Surface_Temp_NE_Quad [C]"   ! may only exist if steaming on
-      i=i+1
-      dist_label(i) ="Rod_Surface_Temp_NW_Quad [C]"   ! may only exist if steaming on
-      i=i+1
-      dist_label(i) ="Rod_Surface_Temp_SE_Quad [C]"
-      i=i+1
-      dist_label(i) ="Rod_Surface_Temp_SW_Quad [C]"
-      i=i+1
-      dist_label(i) ="Steaming_Rate_NE_Quad [kg_per_s]"
-      i=i+1
-      dist_label(i) ="Steaming_Rate_NW_Quad [kg_per_s]"
-      i=i+1
-      dist_label(i) ="Steaming_Rate_SE_Quad [kg_per_s]"
-      i=i+1
-      dist_label(i) ="Steaming_Rate_SW_Quad [kg_per_s]"
-      i=i+1
-      dist_label(i) ="channel_liquid_temps [C]"
-      dist_chan(i) =.true.   ! mark as channel array
+      llpow=i      ! save location of power
+!old  i=i+1
+!old  dist_label(i) ="Rod_Surface_Temp_NE_Quad [C]"   ! may only exist if steaming on
+!old  i=i+1
+!old  dist_label(i) ="Rod_Surface_Temp_NW_Quad [C]"   ! may only exist if steaming on
+!old  i=i+1
+!old  dist_label(i) ="Rod_Surface_Temp_SE_Quad [C]"
+!old  i=i+1
+!old  dist_label(i) ="Rod_Surface_Temp_SW_Quad [C]"
+!old  i=i+1
+!old  dist_label(i) ="Steaming_Rate_NE_Quad [kg_per_s]"
+!old  i=i+1
+!old  dist_label(i) ="Steaming_Rate_NW_Quad [kg_per_s]"
+!old  i=i+1
+!old  dist_label(i) ="Steaming_Rate_SE_Quad [kg_per_s]"
+!old  i=i+1
+!old  dist_label(i) ="Steaming_Rate_SW_Quad [kg_per_s]"
       i=i+1
       dist_label(i) ="pin_fueltemps [C]"
+      lltfu=i      ! save location of tfuel
       i=i+1
       dist_label(i) ="pin_max_clad_surface_temp"
       i=i+1
-      dist_label(i) ="pin_min_dnbr"
+      dist_label(i) ="pin_steamrate"
+!old  i=i+1
+!old  dist_label(i) ="pin_min_dnbr"
+!old  i=i+1
+!old  dist_label(i) ="equilibrium_quality"
+!old  dist_chan(i) =.true.   ! mark as channel array
       i=i+1
-      dist_label(i) ="equilibrium_quality"
+      dist_label(i) ="channel_liquid_temps [C]"
       dist_chan(i) =.true.   ! mark as channel array
+      lltcool=i    ! save location of tcool
       i=i+1
       dist_label(i) ="liquid_density"
       dist_chan(i) =.true.   ! mark as channel array
@@ -139,20 +147,17 @@
       dist_label(i) ="mixture_massflux"
       dist_chan(i) =.true.   ! mark as channel array
       i=i+1
-      dist_label(i) ="pin_min_dnbr"
-      i=i+1
       dist_label(i) ="pressure"
       dist_chan(i) =.true.   ! mark as channel array
       i=i+1
       dist_label(i) ="vapor_void"
       dist_chan(i) =.true.   ! mark as channel array
 
-      if (i.ne.maxdist) stop 'maxdist error'
-
-
-      llpow=1      ! save location of power
-      lltcool=9    ! save location of tcool
-      lltfu=10     ! save location of tfuel
+      if (i.ne.maxdist) then
+        write (*,*) 'number of distributions = ', i
+        write (*,*) 'expecting ', maxdist
+        stop 'maxdist error'
+      endif
 
 !----------------------------------------------------------------------
 !  Read in arguments from command line
@@ -175,6 +180,7 @@
 ! parse command line arguments
 
       idis=-1
+      dist_print(:)=.false.
 
       do i=1, iargs
         call get_command_argument(i,carg)
@@ -250,6 +256,17 @@
         isym=-1
       endif
 
+!--- rated power
+
+      dataset=trim(group_name)//'rated_power'
+      call h5lexists_f(file_id, dataset, ifxst, ierror)
+      if (ifxst) then
+        call hdf5_read_double(file_id, dataset, prated)
+        write (*,*) 'rated power ', prated
+      else
+        prated=0.0d0
+      endif
+
 !--- core map
 
       icore=0
@@ -301,28 +318,34 @@
 
 !--- read channel flow areas (2D array)
 
-      dataset=trim(group_name)//'channel_flow_areas [cm^2]'
+      dataset=trim(group_name)//'channel_area'
       call h5info(file_id, dataset, itype, ndim, idim)
-      if (ndim.ne.3) stop 'invalid dimensions in channel flow areas'
+      if (ndim.ne.4) stop 'invalid dimensions in channel flow areas'
+
+      write (*,*) 'channel area size ', idim(1:ndim)
 
       nassm=idim(1)    ! order (nassm, nchan, nchan)
-      nchan=idim(2)
+      nchan=idim(3)
       npin=nchan-1
 
       if (ifdebug) then
         write (*,*) 'dimensions:'
         write (*,*) ' nassm = ', nassm
         write (*,*) ' npin  = ', npin
-        write (*,*) ' nchan = ', nchan, idim(3)
+        write (*,*) ' nchan = ', nchan, idim(4)
         write (*,*) ' kd    = ', kd
       endif
 
       if (nassm.eq.0) stop 'invalid number of assemblies in pin data'
       if (npin .eq.0) stop 'invalid number of pins in pin data'
-      if (idim(2).ne.idim(3)) stop 'invalid numbering npin by npin'
+      if (idim(2).ne.kd)      stop 'invalid axial planes'
+      if (idim(3).ne.idim(4)) stop 'invalid numbering npin by npin'
 
-      allocate (charea(nassm,nchan,nchan))    ! channel areas
-      call hdf5_read_double(file_id, dataset, nassm, nchan, nchan, charea)
+      allocate (charea(nchan,nchan,kd,nassm))    ! channel areas
+      allocate (temp1(nassm,kd,nchan,nchan))
+      call hdf5_read_double(file_id, dataset, nassm, kd, nchan, nchan, temp1)
+      call transpose4d(nchan, nchan, kd, nassm, temp1, charea)
+      deallocate (temp1)
 
 !  check channel areas
 
@@ -384,6 +407,30 @@
 !--------------------------------------------------------------------------------
 ! Read Statepoint Data
 !--------------------------------------------------------------------------------
+
+!--- read QOI (make separte input flag?)
+
+      dataset=trim(state_name)//'QOI/cool_max_liquid_temp'
+      call hdf5_read_double(file_id, dataset, qoi1)
+      dataset=trim(state_name)//'QOI/core_avg_linear_heatrate'
+      call hdf5_read_double(file_id, dataset, qoi2)
+      dataset=trim(state_name)//'QOI/pin_max_clad_temp'
+      call hdf5_read_double(file_id, dataset, qoi3)
+      dataset=trim(state_name)//'QOI/pin_max_linear_power'
+      call hdf5_read_double(file_id, dataset, qoi4)
+      dataset=trim(state_name)//'QOI/pin_max_temp'
+      call hdf5_read_double(file_id, dataset, qoi5)
+
+      write (*,*)
+      write (*,130) 'QOI cool_max_liquid_temp    ', qoi1, ' C'
+      write (*,130) 'QOI core_avg_linear_heatrate', qoi2, ' W/cm'
+      write (*,130) 'QOI pin_max_clad_temp       ', qoi3, ' C'
+      write (*,130) 'QOI pin_max_linear_power    ', qoi4, ' W/cm'
+      write (*,130) 'QOI pin_max_temp            ', qoi5, ' C'
+      write (*,*)
+  130 format (1x,a,f14.6,a)
+
+!--- read distributions
 
       do idis=1, maxdist
         if (.not.dist_print(idis)) cycle   ! skip distribution
@@ -770,7 +817,8 @@
       subroutine check_channel(nchan, kd, nassm, charea, axial)
       implicit none
       integer, intent(in) :: nchan, kd, nassm
-      real(8), intent(in) :: charea(nassm,nchan,nchan)
+!old  real(8), intent(in) :: charea(nassm,nchan,nchan)
+      real(8), intent(in) :: charea(nchan,nchan,kd,nassm)
       real(8), intent(in) :: axial(kd)
 
       integer :: i, j, na, k
@@ -786,20 +834,22 @@
 
 !--- edit flow areas
 
+      do k=1, kd
       do na=1, nassm
         write (*,70) na
         do j=1, nchan
-          write (*,'(20f7.4)') (charea(na,i,j), i=1, nchan)
+          write (*,'(20f7.4)') (charea(i,j,k,na), i=1, nchan)
         enddo
 
         sum=0.0d0
         do j=1, nchan
           do i=1, nchan
-            sum=sum+charea(na,i,j)
+            sum=sum+charea(i,j,k,na)
           enddo
         enddo
         write (*,80) 'Total Channel flow area ', sum
 
+      enddo
       enddo
    70 format (/,' Channel Flow Areas [cm^2]   - Assembly ',i0)
    80 format (1x,a,' =',f10.4,' [cm^2]')
@@ -824,7 +874,7 @@
       subroutine pincell_coolant(nchan, npin, kd, nassm, charea, chtemp, tcool)
       implicit none
       integer, intent(in) :: nchan, npin, kd, nassm
-      real(8), intent(in) :: charea(nassm,nchan,nchan)
+      real(8), intent(in) :: charea(nchan,nchan,kd,nassm)
       real(8), intent(in) :: chtemp (nchan,nchan,kd, nassm)  ! coolant temps per channel
       real(8), intent(out):: tcool(npin, npin, kd, nassm)    ! coolant temps per pincell
 
@@ -871,10 +921,12 @@
 !!          write (*,'(2i3,a,2f8.4)') i, j, 'w=', w11, w12
 !!          write (*,'(6x, a,4f8.4)')       '  ', w21, w22
 
-            w11=w11*charea(na,i,j)
-            w12=w12*charea(na,i,j+1)
-            w21=w21*charea(na,i+1,j)
-            w22=w22*charea(na,i+1,j+1)
+         k=(kd+1)/2 !****** temp
+
+            w11=w11*charea(i,j,    k,na)
+            w12=w12*charea(i,j+1,  k,na)
+            w21=w21*charea(i+1,j,  k,na)
+            w22=w22*charea(i+1,j+1,k,na)
 
             ww=w11+w12+w21+w22
             sum=sum+ww         ! check sum
