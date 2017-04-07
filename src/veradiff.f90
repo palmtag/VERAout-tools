@@ -45,6 +45,7 @@
       fname1=' '
       fname2=' '
 
+      nstate=0   ! number of statepoints on file
       nfail=0    ! number of test failures
 
 !----------------------------------------------------------------------
@@ -114,7 +115,8 @@
       if (nstate.ne.n) then
         write (*,*) 'Number of statepoints on file 1 = ', nstate
         write (*,*) 'Number of statepoints on file 2 = ', n
-        write (*,'(a)') 'ERROR: Number of statepoints does not match'
+        write (*,'(a)') 'ERROR: Number of statepoints do not match'
+        nstate=0      ! protect summary messages
         nfail=nfail+1
       endif
 
