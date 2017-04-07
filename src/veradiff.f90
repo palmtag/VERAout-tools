@@ -154,7 +154,7 @@
           /,'     N     exp     EFPD    keff1     keff2      pcm   max%    rms%')
    55 format (2x,i4, f9.4, f8.2, 2f10.6, f8.1, 2f8.4)
 
-      deallocate (summary)
+      if (allocated(summary)) deallocate (summary)
 
       if (nfail.gt.0) then
         write (*,'(/,a)') 'Overall FAIL'
