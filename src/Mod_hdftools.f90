@@ -1168,14 +1168,12 @@
       endif
       maxndim=ierror
 
-      write (0,*) 'spp: maxndim = ', maxndim
-
-!!    if (ifdebug) then
+      if (ifdebug) then
         write (*,110) trim(dataset)
         write (*,115) 'number of dimensions: ', maxndim
         write (*,115) 'dimensions    : ', h_dims(1:maxndim)
         write (*,115) 'dimensions max: ', h_maxdims(1:maxndim)
-!!    endif
+      endif
   110 format (/,' dataset : ', a)
   115 format (1x,a,20i4)
 

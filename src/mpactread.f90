@@ -601,7 +601,7 @@
           enddo
 
           if (idis.eq.llpow) then
-            power=tdist        ! save power - needed for mask
+            power=tdist        ! save 3D power - needed for mask
           endif
           if (.not.dist_print(idis)) cycle    ! skip if this was power
 
@@ -641,7 +641,7 @@
           endif
 
           if (ifbatch .and. idis.eq.llexp) then
-             call batchstat (npin, kd, nassm, icore, jcore, mapcore, axial, tdist)
+             call batchstat (npin, kd, nassm, icore, jcore, mapcore, axial, tdist, power)
           endif
 
         enddo   ! distributions

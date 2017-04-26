@@ -22,8 +22,6 @@
 !  ** string read assumes that the string length is size 2
 !  ** need to fix HDF reader
 !
-!  ** the average skips zero exposure pins, really need to mask with power, not exposure
-!
 !-----------------------------------------------------------------------
 
       integer :: nbatch
@@ -32,9 +30,14 @@
 
       character(len=6) :: batchlabel(maxbatch)
       integer          :: batchcnt(maxbatch+1)
-      real(8)          :: batch1(maxbatch+1)    ! batch ave
-      real(8)          :: batch2(maxbatch+1)    ! batch min
-      real(8)          :: batch3(maxbatch+1)    ! batch max
+
+      real(8)          :: batch1(maxbatch+1)    ! pinexp batch ave
+      real(8)          :: batch2(maxbatch+1)    ! pinexp batch min
+      real(8)          :: batch3(maxbatch+1)    ! pinexp batch max
+
+      real(8)          :: batch4(maxbatch+1)    ! pinpow batch ave
+      real(8)          :: batch5(maxbatch+1)    ! pinpow batch min
+      real(8)          :: batch6(maxbatch+1)    ! pinpow batch max
 
       integer, allocatable :: mapbatch(:,:)  ! (icore,jcore)
 
@@ -69,10 +72,11 @@
       batch1(:)=0.0d0
       batch2(:)=1.0d20
       batch3(:)=0.0d0
+      batch4(:)=0.0d0
+      batch5(:)=1.0d20
+      batch6(:)=0.0d0
 
 !--- read assembly map (i.e. batch labels)
-
-      write (0,*) 'debug: reading assm_map'
 
       dataset='/INPUT/CASEID/CORE/assm_map'
       call h5info(file_id, dataset, itype, ndim, idim)
@@ -179,75 +183,112 @@
 !  Loop over full-core in order to get full-core statistics correct
 !
 !=======================================================================
-      subroutine batchstat (npin, kd, nassm, icore, jcore, mapcore, axial, power)
+      subroutine batchstat (npin, kd, nassm, icore, jcore, mapcore, axial, pinexp, power)
       implicit none
 
       integer, intent(in) :: npin, kd, nassm
       integer, intent(in) :: icore, jcore
       integer, intent(in) :: mapcore(icore,jcore)
       real(8), intent(in) :: axial(kd)
+      real(8), intent(in) :: pinexp(npin,npin,kd,nassm)
       real(8), intent(in) :: power(npin,npin,kd,nassm)
 
 !--- local
 
-      integer  :: i, j, k
+      integer  :: i, j, k, kpin, kpinsave
       integer  :: ia, ja, na, nb
-      real(8)  :: pp
-      real(8)  :: zlen, zave      ! axial values
-      real(8)  :: c3min, c3max    ! 3D values
+      real(8)  :: ee, pp
+      real(8)  :: zlen                  ! axial length
+      real(8)  :: eave, e3min, e3max    ! 3D exp values
+      real(8)  :: pave, p3min, p3max    ! 3D pow values
 
 !--- calculate 3D statistics
+
+      if (nbatch.eq.0) return
+
+      kpinsave=0
 
       batch1(:)=0.0d0
       batch2(:)=1.0d20
       batch3(:)=0.0d0
+      batch4(:)=0.0d0
+      batch5(:)=1.0d20
+      batch6(:)=0.0d0
 
       do ja=1, jcore     ! loop over assemblies in full-core
         do ia=1, icore   ! loop over assemblies in full-core
         na=mapcore(ia,ja)
         if (na.eq.0) cycle
 
-        zave=0.0d0       ! assembly values
         zlen=0.0d0
-        c3min=1.0d20
-        c3max=0.0d0
+        eave=0.0d0       ! assembly values
+        e3min=1.0d20
+        e3max=0.0d0
+        pave=0.0d0       ! assembly values
+        p3min=1.0d20
+        p3max=0.0d0
 
+        kpin=0
         do k=1, kd
           do j=1, npin
             do i=1, npin
               pp=power(i,j,k,na)
               if (pp.gt.0.0d0) then
-                zave=zave+axial(k)*pp
                 zlen=zlen+axial(k)
-                if (pp.lt.c3min) c3min=pp
-                if (pp.gt.c3max) c3max=pp
+                ee=pinexp(i,j,k,na)
+                eave=eave+axial(k)*ee
+                if (ee.lt.e3min) e3min=ee
+                if (ee.gt.e3max) e3max=ee
+                pave=pave+axial(k)*pp
+                if (pp.lt.p3min) p3min=pp
+                if (pp.gt.p3max) p3max=pp
+                kpin=kpin+1
               endif
             enddo
           enddo
         enddo
 
+        if (kpinsave.eq.0) kpinsave=kpin
+        if (kpin.ne.kpinsave) then
+           write (*,*) kpin
+           write (*,*) kpinsave
+           write (*,*) 'WARNING: number of 3D pins in a bundle is changing'
+        endif
+!d      write (*,*) 'debug: ia, ja, kpin', ia, ja, kpin, real(kpin)/kd
+
         if (zlen.gt.0.0d0) then
-          zave=zave/zlen
+          eave=eave/zlen
+          pave=pave/zlen
         else
-          c3min=0.0d0    ! avoid overflow
+          e3min=0.0d0    ! avoid overflow
+          p3min=0.0d0    ! avoid overflow
         endif
 
         nb=mapbatch(ia,ja)
-        batch1(nb)=batch1(nb)+zave         ! batch ave
-        batch2(nb)=min(batch2(nb),c3min)   ! batch min
-        batch3(nb)=max(batch3(nb),c3max)   ! batch max
+        if (nb.eq.0) stop 'zero batch number found'
+        batch1(nb)=    batch1(nb)+eave     ! batch ave
+        batch2(nb)=min(batch2(nb),e3min)   ! batch min
+        batch3(nb)=max(batch3(nb),e3max)   ! batch max
+        batch4(nb)=    batch4(nb)+pave     ! batch ave
+        batch5(nb)=min(batch5(nb),p3min)   ! batch min
+        batch6(nb)=max(batch6(nb),p3max)   ! batch max
 
       enddo    ! ia
       enddo    ! ja
 
       nb=nbatch+1   ! core average
       do i=1, nbatch
-        batch1(nb)=batch1(nb)    +batch1(i)    ! core ave *** average of non-zero points
+        batch1(nb)=    batch1(nb)+batch1(i)    ! core ave
         batch2(nb)=min(batch2(nb),batch2(i))   ! core min
         batch3(nb)=max(batch3(nb),batch3(i))   ! core max
+        batch4(nb)=    batch4(nb)+batch4(i)    ! core ave
+        batch5(nb)=min(batch5(nb),batch5(i))   ! core min
+        batch6(nb)=max(batch6(nb),batch6(i))   ! core max
         batch1(i)=batch1(i)/batchcnt(i)
+        batch4(i)=batch4(i)/batchcnt(i)
       enddo
       batch1(nb)=batch1(nb)/batchcnt(nb)
+      batch4(nb)=batch4(nb)/batchcnt(nb)
 
       return
       end subroutine batchstat
@@ -265,28 +306,30 @@
 
 !--- print batch statistics
 
+      if (nbatch.eq.0) return
+
       write (*,30)
       kk=0   ! sum
       do k=1, nbatch
-        write (*,40) k, batchlabel(k), batchcnt(k), batch1(k), batch2(k), batch3(k)
+        write (*,40) k, batchlabel(k), batchcnt(k), batch1(k), batch2(k), batch3(k), batch4(k), batch5(k), batch6(k)
         kk=kk+batchcnt(k)
       enddo
 
-      k=nbatch+1
-      batch1(k)=batch1(k)/batchcnt(k)
-      write (*,42)  batchcnt(k), batch2(k), batch3(k)
-  ! *** don't print core average batch 1 - it is average of non-zero points
+      k=nbatch+1    ! core average values
+      write (*,42)  batchcnt(k), batch1(k), batch2(k), batch3(k), batch4(k), batch5(k), batch6(k)
 
-   30 format (/,' Batch edits:           pin_exposure', &
-              /,'   Batch    nassm     ave    minpin   maxpin')
+   30 format (/,' Batch edits:      ------ pin_exposure -----      ------- pin_power -------', &
+              /,'   Batch    nassm     ave    minpin   maxpin         ave    minpin   maxpin')
 
-   40 format (i6,1x,a,i4, 3f9.4)
-   42 format ('  core ave',3x,i4,9x, 3f9.4)
+   40 format (i6,1x,a,i4, 3f9.4,4x,3f9.4)
+   42 format ('  core ave',3x,i4,3f9.4,4x,3f9.4)
+
+      write (*,*)
+      write (*,*) '*** pin exposure averages are not weighted by mass'
 
       return
       end subroutine batchedit
 !=======================================================================
-
 
    end module mod_batch
 
