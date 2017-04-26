@@ -30,7 +30,7 @@
 !        read_double3d (file_id, dataset, idm1, idm2, idm3, xvar)
 !        read_double4d (file_id, dataset, idm1, idm2, idm3, idm4, xvar)
 !     read_string   (file_id, dataset, stringout)
-!     read_string1d (file_id, dataset, stringout, maxsize, nsize)
+!     read_string1d (file_id, dataset, stringout, nsize)
 !
 !     hdf5_read_integer  (generic subroutine)
 !        read_integer  (file_id, dataset, ivar)
@@ -1108,33 +1108,34 @@
 !  Subroutine to read 1D array of character string from HDF5 file
 !
 !=======================================================================
-      subroutine read_string1d(file_id, dataset, stringout, maxsize, nsize)
+      subroutine read_string1d(file_id, dataset, stringout, nsize)
       implicit none
 
       integer(hid_t),   intent(in) :: file_id
       character(len=*), intent(in) :: dataset
-      integer,          intent(in) :: maxsize   ! maximum size of array
-      integer,          intent(out):: nsize     ! returned size of array
-      character(len=*), intent(out):: stringout(maxsize)
+      integer,          intent(in) :: nsize     ! size of array
+      character(len=*), intent(out):: stringout(nsize)
 
 !--- local
 
       integer(hid_t)     :: dset_id
       integer(hid_t)     :: type_id
       integer(hid_t)     :: ispace_id
-      integer            :: ierror, i, j, ilen
+      integer            :: ierror, i, j
+      integer            :: klen
       integer            :: maxndim
 
-      integer, parameter :: max_dimen=2     ! maximum number of dimensions allowed
+      integer, parameter :: max_dimen=1     ! maximum number of dimensions allowed
 
-      integer(hsize_t)   :: h_dims(max_dimen)
-      integer(hsize_t)   :: h_maxdims(max_dimen)
+      integer(hsize_t)   :: h_dims(4)  ! (max_dimen)
+      integer(hsize_t)   :: h_maxdims(4)  ! (max_dimen)
 
       character(len=1), allocatable :: htemp(:,:)
 
       ierror=0
-      nsize=0
       stringout(:)=' '    ! initialize
+
+      klen =len(stringout)
 
 !--- read string
 
@@ -1148,16 +1149,6 @@
         write (*,'(a,i8)') 'error code ', ierror
         return
       endif
-
-!--- determine data type
-
-      call h5dget_type_f(dset_id, type_id, ierror)
-      if (ierror.ne.0) then
-        write (*,*) 'error: h5dget_type_f ', ierror
-        call h5_fatal('h5dget_type_f','ierror')
-      endif
-
-!  note that type_id does not match H5T_NATIVE_CHARACTER or H5T_STRING
 
 ! open dataspace
 
@@ -1177,12 +1168,14 @@
       endif
       maxndim=ierror
 
-      if (ifdebug) then
+      write (0,*) 'spp: maxndim = ', maxndim
+
+!!    if (ifdebug) then
         write (*,110) trim(dataset)
         write (*,115) 'number of dimensions: ', maxndim
         write (*,115) 'dimensions    : ', h_dims(1:maxndim)
         write (*,115) 'dimensions max: ', h_maxdims(1:maxndim)
-      endif
+!!    endif
   110 format (/,' dataset : ', a)
   115 format (1x,a,20i4)
 
@@ -1197,11 +1190,27 @@
 !--- To fix, read data into a temporary character array then fill
 !--- the actual character arrays
 
-      ilen =int(h_dims(1))   ! temporary array length
-      nsize=int(h_dims(2))
-      allocate (htemp(ilen,nsize))
+      if (h_dims(1).ne.nsize) then
+         write (*,*) '  expecting ', nsize
+         write (*,*) '  found     ', h_dims(1)
+         call h5_fatal('read_string1d','invalid string size')
+      endif
 
-! Read data from dataset - read temporary character array
+! ***** how can you determine klen???
+
+      allocate (htemp(klen,nsize))
+
+!--- determine data type
+
+      call h5dget_type_f(dset_id, type_id, ierror)
+      if (ierror.ne.0) then
+        write (*,*) 'error: h5dget_type_f ', ierror
+        call h5_fatal('h5dget_type_f','ierror')
+      endif
+
+!  note that type_id does not match H5T_NATIVE_CHARACTER or H5T_STRING
+
+!--- Read data from dataset - read temporary character array
 
       call h5dread_f(dset_id, type_id, htemp, h_dims, ierror)
       if (ierror.ne.0) then
@@ -1216,19 +1225,12 @@
 
 ! Transfer temporary character arrays to actual character arrays
 
-      if (ilen.gt.len(stringout)) then         ! protect bounds
-        write (*,*) 'warning: truncating string length in read_string1d'
-        ilen=len(stringout)
-      endif
-      if (nsize.gt.maxsize) then               ! protect bounds
-        write (*,*) 'warning: truncating number of data entries in read_string1d'
-        nsize=maxsize
-      endif
-
-      stringout(:)=' '
       do j=1, nsize
-        do i=1, ilen
-          if (ichar(htemp(i,j)).eq.0) htemp(i,j)=' '   ! remove null
+        do i=1, klen
+          if (ichar(htemp(i,j)).eq.0) then
+            write (0,*) '*** found null character - fixing ****', i, j
+            htemp(i,j)=' '   ! remove null  *** is this necessary?
+          endif
           stringout(j)(i:i)=htemp(i,j)
         enddo
       enddo

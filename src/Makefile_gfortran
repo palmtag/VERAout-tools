@@ -17,7 +17,7 @@ HDFOPT =
 
 all:    hunittest.exe makehdf.exe mpactread.exe mpactxmf.exe mpactres.exe ctfread.exe veradiff.exe getscaler.exe
 
-mpactread.exe: Mod_hdftools.o mpactread.o output_utils.o
+mpactread.exe: Mod_hdftools.o Mod_batch.o mpactread.o output_utils.o
 	$(FC) $(FFLAGS) $^ $(HDFOPT) -o $@
 
 mpactxmf.exe: Mod_hdftools.o mpactxmf.o
@@ -47,7 +47,7 @@ getscaler.exe: Mod_hdftools.o getscaler.o
 clean:
 	rm -f *.o *.exe *.mod dsetunit.h5
 
-mpactread.o : Mod_hdftools.o
+mpactread.o : Mod_hdftools.o Mod_batch.o
 mpactxmf.o : Mod_hdftools.o
 mpactres.o : Mod_hdftools.o
 ctfread.o : Mod_hdftools.o
@@ -55,4 +55,3 @@ hunittest.o : Mod_hdftools.o
 makehdf.o : Mod_hdftools.o
 veradiff.o : Mod_hdftools.o
 getscaler.o : Mod_hdftools.o
-

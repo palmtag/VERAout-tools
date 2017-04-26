@@ -1,6 +1,7 @@
    program mpactread
    use  hdf5
    use  mod_hdftools
+   use  mod_batch
    implicit none
 !=======================================================================
 !
@@ -23,6 +24,8 @@
 !             - calculate averages in qtr-symmetry problems correctly
 !             - add pin exposure edits
 !  2015/03/25 - add outer iterations count and time edits
+!  2017/04/25 - add initial batch edit option for pin exposures
+!             - assumes assm_map is 2 character labels ***
 !
 !-----------------------------------------------------------------------
 
@@ -109,6 +112,7 @@
       logical  :: if2da  =.false.           ! turn on 2D assembly edits
       logical  :: if1d   =.false.           ! turn on 1D edits
       logical  :: iftime =.false.           ! timing summary
+      logical  :: ifbatch=.false.           ! batch edits
 
 !  initialize
 
@@ -149,6 +153,7 @@
         write (*,*) '  2DA    print 2D assembly edits'
         write (*,*) '  3D     print 3D pin edits'
         write (*,*) '  time   print timing summary'
+        write (*,*) '  batch  print batch edits'
         write (*,*)
         write (*,*) 'distribution selections for -dN option:'
         do idis=1, maxdist
@@ -177,6 +182,8 @@
           ifdebug=.true.
         elseif (carg.eq.'time') then
           iftime=.true.
+        elseif (carg.eq.'batch') then
+          ifbatch=.true.
         elseif (carg.eq.'-help' .or. carg.eq.'--help') then  ! add for Ben
           write (*,*) 'run mpactread with no command line arguments for help'
         elseif (carg(1:2).eq.'-d') then
@@ -378,6 +385,20 @@
       allocate (xlabel(icore))
       allocate (ylabel(jcore))
 
+!**** still having issues with reading strings
+
+!     dataset=trim(group_name)//'xlabel'
+!     call h5info(file_id, dataset, itype, ndim, idim)
+!     if (ndim.ne.1)        stop 'invalid dimensions in xlabel'
+!     if (idim(1).ne.jcore) stop 'invalid size in xlabel'
+!     call read_string1d(file_id, dataset, xlabel, icore)
+
+!     dataset=trim(group_name)//'ylabel'
+!     call h5info(file_id, dataset, itype, ndim, idim)
+!     if (ndim.ne.1)        stop 'invalid dimensions in ylabel'
+!     if (idim(1).ne.jcore) stop 'invalid size in ylabel'
+!     call read_string1d(file_id, dataset, ylabel, jcore)
+
       n=ichar('A')+icore-1
       if (icore.ge.15) n=n+1   ! skip letter "O"
       if (icore.ge.9)  n=n+1   ! skip letter "I"
@@ -390,6 +411,12 @@
       do j=1, jcore
         write (ylabel(j),'(i2.2)') j
       enddo
+
+!--- initialize batch edits
+
+      if (ifbatch) then
+        call batch_init(file_id, mapcore, icore, jcore)
+      endif
 
 !---------------------
 !  Read STATE groups
@@ -613,7 +640,16 @@
             call print2d_assm_map(npin, nassm, tdist2d, icore, jcore, mapcore, xlabel, ylabel)
           endif
 
+          if (ifbatch .and. idis.eq.llexp) then
+             call batchstat (npin, kd, nassm, icore, jcore, mapcore, axial, tdist)
+          endif
+
         enddo   ! distributions
+
+        if (ifbatch) then    ! batch edits
+          call batchedit
+        endif
+
       enddo   ! end of statepoint loop
 
 !--------------------------------------------------------------------------------
@@ -637,6 +673,8 @@
       deallocate (axial)
 
       nstate=nstate-1   ! decrease due to statepoint check
+
+
 
 !--- print summary
 
