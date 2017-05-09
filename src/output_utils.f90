@@ -313,10 +313,10 @@
       integer            :: kpin
       real(8)            :: pp, pave, pmin, pmax
       real(8)            :: zmax
-      character(len=150) :: line
+      character(len=200) :: line
       character(len=8)   :: fmt
 
-      if (npin.gt.20) then
+      if (npin.gt.30) then
         write (*,*) '**** too many pins across to print nice maps ****'
         return
       endif
