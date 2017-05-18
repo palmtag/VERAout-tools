@@ -152,10 +152,11 @@
 
       iargs = command_argument_count()
       if (iargs.lt.1) then
-        write (*,*) 'usage:  mpactread.exe [hdf5_file] {1D/2D/2DA/3D} {time} {-dN}'
+        write (*,*) 'usage:  mpactread.exe [hdf5_file] {1D/2D/2DA/2PIN/3D} {time} {-dN}'
         write (*,*) '  1D     print 1D edits'
         write (*,*) '  2D     print 2D pin edits'
-        write (*,*) '  2DA    print 2D assembly edits'
+        write (*,*) '  2DA    print 2D assembly average edits'
+        write (*,*) '  2PIN   print max 2D assembly rod edits'
         write (*,*) '  3D     print 3D pin edits'
         write (*,*) '  time   print timing summary'
         write (*,*) '  batch  print batch edits'
