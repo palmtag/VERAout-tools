@@ -7,7 +7,7 @@
 !
 !  Program to read MPACT HDF output file and print summary
 !
-!  Copyright (c) 2014-2015 Core Physics, Inc.
+!  Copyright (c) 2014-2017 Core Physics, Inc.
 !
 !  Distributed under the MIT license.
 !  See the LICENSE file in the main directory for details.
@@ -26,6 +26,7 @@
 !  2015/03/25 - add outer iterations count and time edits
 !  2017/04/25 - add initial batch edit option for pin exposures
 !             - assumes assm_map is 2 character labels ***
+!  2017/05/18 - add 2PIN and 2PIN map for Jim
 !
 !-----------------------------------------------------------------------
 
@@ -66,6 +67,7 @@
       integer  :: npin                      ! pin data
 
       real(8)  :: xtemp                     ! temp value
+      real(8)  :: xtemp2                    ! temp value
       real(8)  :: xave                      ! temp value
       real(8)  :: xkeff                     ! eigenvalue
       real(8)  :: xexpo                     ! exposure
@@ -102,6 +104,7 @@
       real(8)  :: state_tinlet(maxstate)
       real(8)  :: state_3exp(maxstate)
       real(8)  :: state_3pin(maxstate)
+      real(8)  :: state_2pin(maxstate)
       integer  :: state_nout(maxstate)
       real(8)  :: state_time(maxstate)
 
@@ -110,6 +113,7 @@
       logical  :: if3d   =.false.           ! turn on 3D edits
       logical  :: if2d   =.false.           ! turn on 2D edits
       logical  :: if2da  =.false.           ! turn on 2D assembly edits
+      logical  :: if2pin =.false.           ! turn on 2PIN assembly edits
       logical  :: if1d   =.false.           ! turn on 1D edits
       logical  :: iftime =.false.           ! timing summary
       logical  :: ifbatch=.false.           ! batch edits
@@ -127,6 +131,7 @@
       state_tinlet(:)=-1.0d0
       state_3exp(:)=0.0d0
       state_3pin(:)=0.0d0
+      state_2pin(:)=0.0d0
       state_nout(:)=0
       state_time(:)=-1.0d0
 
@@ -176,6 +181,8 @@
           if2d=.true.
         elseif (carg.eq.'2DA' .or. carg.eq.'2da') then
           if2da=.true.
+        elseif (carg.eq.'2PIN' .or. carg.eq.'2pin') then
+          if2pin=.true.
         elseif (carg.eq.'1D' .or. carg.eq.'1d') then
           if1d=.true.
         elseif (carg.eq.'debug') then
@@ -198,10 +205,11 @@
         dist_print(:)=.true.
       endif
 
-      if (.not.if1d)  write (*,*) 'no 1D edits requested on command line'
-      if (.not.if2d)  write (*,*) 'no 2D edits requested on command line'
-      if (.not.if2da) write (*,*) 'no 2DA edits requested on command line'
-      if (.not.if3d)  write (*,*) 'no 3D edits requested on command line'
+      if (if1d)   write (*,*) '1D edits requested on command line'
+      if (if2d)   write (*,*) '2D pin edits requested on command line'
+      if (if2da)  write (*,*) '2DA assembly edits requested on command line'
+      if (if2pin) write (*,*) '2PIN edits requested on command line'
+      if (if3d)   write (*,*) '3D pin edits requested on command line'
 
       if (inputfile.eq.' ') then
         stop 'no input file specified on command line'
@@ -610,9 +618,10 @@
           endif
 
           call stat3d(dist_label(idis), npin,  kd, nassm, icore, jcore, mapcore, &
-                      axial, tdist, xave, xtemp)
+                      axial, tdist, xave, xtemp, xtemp2)
           if (idis.eq.llpow) then
             state_3pin(nstate)=xtemp
+            state_2pin(nstate)=xtemp2
           endif
           if (idis.eq.llexp) then
             state_3exp(nstate)=xtemp
@@ -636,8 +645,14 @@
             call print1d(dist_label(idis), npin, kd, nassm, tdist, axial)
           endif
 
-          if (if2da) then     ! 2D assembly edits
-            call print2d_assm_map(npin, nassm, tdist2d, icore, jcore, mapcore, xlabel, ylabel)
+          if (if2da) then     ! 2D average assembly edits (already collapsed)
+            call print2d_assm_map(dist_label(idis), npin, nassm, tdist2d, &
+                 icore, jcore, mapcore, xlabel, ylabel)
+          endif
+
+          if (if2pin) then
+            call print2d_2pin_map(dist_label(idis), npin, nassm, tdist, axial, &
+                 icore, jcore, kd, mapcore, xlabel, ylabel)
           endif
 
           if (ifbatch .and. idis.eq.llexp) then
@@ -659,7 +674,7 @@
 
       call h5fclose_f(file_id, ierror)
 
-!--- deallocate distributins
+!--- deallocate distributions
 
       if (allocated(tdist2d)) then  ! protect from missing statepoints
         deallocate (tdist2d)
@@ -681,15 +696,15 @@
       write (*,110)
       do n=1, nstate
         write (*,120) n, state_xexpo(n), state_xefpd(n), state_xkeff(n), &
-               state_boron(n), state_3pin(n), state_3exp(n), state_flow(n), &
+               state_boron(n), state_3pin(n), state_2pin(n), state_3exp(n), state_flow(n), &
                state_power(n), state_tinlet(n)
       enddo
   110 format (/,'==================================',&
               /,'       Statepoint Summary', &
               /,'==================================',&
-              /,'   N   exposure  exposure  eigenvalue   boron     3PIN       3EXP      flow     power    tinlet')
+              /,'   N   exposure  exposure  eigenvalue   boron      3PIN      2PIN      3EXP      flow     power    tinlet')
 
-  120 format (i4, f10.4, f10.2, f12.6, f10.2, 5f10.4)
+  120 format (i4, f10.4, f10.2, f12.6, f10.2, 6f10.4)
 
 !--- timing summary
 
@@ -711,108 +726,6 @@
 
       end program
 
-!=======================================================================
-!
-!  Subroutine to print 2D Assembly Maps
-!
-!=======================================================================
-      subroutine print2d_assm_map(npin, nassm, pow2, icore, jcore, mapcore, xlabel, ylabel)
-      implicit none
-      integer, intent(in) :: npin, nassm
-      integer, intent(in) :: icore, jcore
-      integer, intent(in) :: mapcore(icore,jcore)
-      real(8), intent(in) :: pow2(npin,npin,nassm)
-      character(len=*), intent(in) :: xlabel(icore)
-      character(len=*), intent(in) :: ylabel(jcore)
-
-      character(len=8) :: fmt
-
-      integer          :: i, j, nn
-      integer          :: nnsave
-      integer          :: ia, ja, na
-      real(8)          :: pmin, pmax
-      real(8)          :: pp
-      real(8)          :: passm(nassm)  ! automatic
-
-      logical  :: ifbw  ! flag if assemblies have different number of pins
-
-      ifbw=.false.
-
-      write (*,*)
-
-!--- calculate 2D assembly averages
-
-      passm(:)=0.0d0
-
-      nnsave=0
-      do na=1, nassm
-        nn=0
-        do j=1, npin
-          do i=1, npin
-            pp=pow2(i,j,na)
-            if (pp.gt.0.0d0) then
-              nn=nn+1
-              passm(na)=passm(na)+pp
-            endif
-          enddo
-        enddo
-        if (nn.gt.0) passm(na)=passm(na)/dble(nn)
-        if (nnsave.eq.0) nnsave=nn    ! save first time
-        if (nn.ne.nnsave) ifbw=.true.
-      enddo
-
-!--- calculate average - use mapcore in case this is qtr-core
-
-      nn=0
-      pp=0.0d0
-      pmin=passm(1)
-      pmax=passm(1)
-
-      do ja=1, jcore
-        do ia=1, icore
-          na=mapcore(ia,ja)
-          if (na.gt.0) then
-            pp=pp+passm(na)
-            nn=nn+1
-            pmax=max(pmax,passm(na))
-            pmin=min(pmin,passm(na))
-          endif
-        enddo    ! ia
-      enddo      ! ja
-
-      if (nn.gt.0) pp=pp/dble(nn)
-      write (*,*) 'number of assemblies in full-core', nn
-      if (ifbw) then
-        write (*,*) 'WARNING: average of assemblies cannot be calculated because assemblies have different number of rods'
-      else
-        write (*,130) 'average', pp
-!!      if (abs(pp-1.0d0).gt.0.0001) write (0,*) '***** check normalization *****'   ! msg only valid for pin powers
-      endif
-      write (*,130) 'maximum', pmax
-      write (*,130) 'minimum', pmin
-  130 format (1x,a,' assembly power  ', f8.4)
-
-      fmt='(f8.4)'
-      if (pp.gt.100.0d0) fmt='(f8.2)'
-
-!--- print map
-
-      write (*,'("  **  ",50(4x,a2,2x))') (xlabel(i),i=1,icore)   ! labels are 2
-
-      do j=1, jcore
-        write (*,'(2x,a2,"- ")',advance='no') ylabel(j)
-        do i=1, icore
-           if (mapcore(i,j).eq.0) then
-             write (*,'(8x)',advance='no')
-           else
-             write (*,fmt,advance='no') passm(mapcore(i,j))
-           endif
-        enddo
-        write (*,*)
-      enddo
-
-      return
-      end subroutine print2d_assm_map
 !=======================================================================
 !
 !  Debug subroutine to check power normalization

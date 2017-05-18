@@ -1,10 +1,10 @@
-   subroutine stat3d (title, npin, kd, nassm, icore, jcore, mapcore, axial, power, pave, pmax)
+   subroutine stat3d (title, npin, kd, nassm, icore, jcore, mapcore, axial, power, pave, pmax, pmax2d)
    implicit none
 !=======================================================================
 !
 !  Subroutines for writing 1D and 2D maps to output
 !
-!  Copyright (c) 2014-2015 Core Physics, Inc.
+!  Copyright (c) 2014-2017 Core Physics, Inc.
 !
 !  Distributed under the MIT license.
 !  See the LICENSE file in the main directory for details.
@@ -15,6 +15,8 @@
 !
 !  General version that considers qtr-symmetry
 !
+!  2017/05/18 - added 2PIN edit
+!
 !=======================================================================
       integer, intent(in) :: npin, kd, nassm
       integer, intent(in) :: icore, jcore
@@ -22,42 +24,51 @@
       real(8), intent(in) :: axial(kd)
       real(8), intent(in) :: power(npin,npin,kd,nassm)
       real(8), intent(out):: pave   ! average
-      real(8), intent(out):: pmax   ! max
+      real(8), intent(out):: pmax   ! max 3pin
+      real(8), intent(out):: pmax2d ! max 2pin
       character(len=*), intent(in) :: title
 
 !--- local
 
       integer  :: i, j, k
       integer  :: ia, ja, na, kpin
+      real(8)  :: p2d, z2d
       real(8)  :: pp
       real(8)  :: zlen, zave      ! axial values
       real(8)  :: c3min, c3max    ! 3D values
+      integer  :: k2max(3)        ! 2D max locations
       integer  :: k3min(4)        ! 3D min locations
       integer  :: k3max(4)        ! 3D max locations
 
 !--- calculate 3D statistics
 
       pave=0.0d0   ! output average
-      pmax=0.0d0   ! output maximum
+      pmax=0.0d0   ! output maximum 3pin
+      pmax2d=0.0d0 ! output maximum 2pin
 
       kpin=0
       zave=0.0d0
       zlen=0.0d0
-      c3min=1.0d20
+      c3min=1.0d20   ! core min/max
       c3max=0.0d0
       k3min(:)=0
       k3max(:)=0
+      k2max(:)=0
 
       do ja=1, jcore     ! loop over assemblies in full-core
         do ia=1, icore   ! loop over assemblies in full-core
         na=mapcore(ia,ja)
         if (na.eq.0) cycle
 
-        do k=1, kd
-          do j=1, npin
-            do i=1, npin
+        do j=1, npin
+          do i=1, npin
+            p2d=0.0d0   ! reset for each rod
+            z2d=0.0d0
+            do k=1, kd
               pp=power(i,j,k,na)
               if (pp.gt.0.0d0) then
+                p2d=p2d+axial(k)*pp
+                z2d=z2d+axial(k)
                 zave=zave+axial(k)*pp
                 zlen=zlen+axial(k)
                 kpin=kpin+1
@@ -78,6 +89,15 @@
 
               endif
             enddo
+            if (z2d.gt.0.0d0) then
+              p2d=p2d/z2d
+              if (p2d.gt.pmax2d) then
+                pmax2d=p2d
+                k2max(1)=i
+                k2max(2)=j
+                k2max(3)=na
+              endif
+            endif
           enddo
         enddo
       enddo    ! ia
@@ -91,17 +111,20 @@
       write (*,'(/,1x,2a)') '3D Statistics - ', trim(title)
 
       if (c3max.gt.0.0d0 .and. c3max.lt.0.001d0) then ! print exponent
-        write (*,190) 'Min ', c3min
-        write (*,190) 'Max ', c3max
-        write (*,192) 'Ave ', zave
+        write (*,190) 'Min  ', c3min
+        write (*,190) 'Max  ', c3max
+        write (*,192) 'Max2d', pmax2d
+        write (*,192) 'Ave  ', zave
       else
-        write (*,180) 'Min ', c3min, k3min(:)
-        write (*,180) 'Max ', c3max, k3max(:)
-        write (*,182) 'Ave ', zave
+        write (*,180) 'Min  ', c3min, k3min(:)
+        write (*,180) 'Max  ', c3max, k3max(:)
+        write (*,181) 'Max2D', pmax2d, k2max(:)
+        write (*,182) 'Ave  ', zave
       endif
-      write (*,'(a,i10)  ')  '  Num ', kpin
+      write (*,'(a,i10)  ')  '  Num  ', kpin
 
   180 format (2x, a,f10.4,'  at (i,j,k,na)', 4i4)
+  181 format (2x, a,f10.4,'  at (i,j,  na)', 2i4,4x,i4)
   182 format (2x, a,f10.4)
   190 format (2x, a,1p,e14.5,'  at (i,j,k,na)', 0p, 4i4)
   192 format (2x, a,1p,e14.5)
@@ -609,3 +632,193 @@
       return
       end subroutine collapse2d
 
+!=======================================================================
+!
+!  Subroutine to print 2D Assembly Maps (assembly average values)
+!
+!=======================================================================
+      subroutine print2d_assm_map(title, npin, nassm, pow2, icore, jcore, mapcore, xlabel, ylabel)
+      implicit none
+      integer, intent(in) :: npin, nassm
+      integer, intent(in) :: icore, jcore
+      integer, intent(in) :: mapcore(icore,jcore)
+      real(8), intent(in) :: pow2(npin,npin,nassm)
+      character(len=*), intent(in) :: title
+      character(len=*), intent(in) :: xlabel(icore)
+      character(len=*), intent(in) :: ylabel(jcore)
+
+      character(len=8) :: fmt
+
+      integer          :: i, j, nn
+      integer          :: nnsave
+      integer          :: ia, ja, na
+      real(8)          :: pmin, pmax
+      real(8)          :: pp
+      real(8)          :: passm(nassm)  ! automatic
+
+      logical  :: ifbw  ! flag if assemblies have different number of pins
+
+      ifbw=.false.
+
+      write (*,'(/,1x,2a,/)') trim(title), ' - 2D assembly average (2RPF)'
+
+!--- calculate 2D assembly averages
+
+      passm(:)=0.0d0
+
+      nnsave=0
+      do na=1, nassm
+        nn=0
+        do j=1, npin
+          do i=1, npin
+            pp=pow2(i,j,na)
+            if (pp.gt.0.0d0) then
+              nn=nn+1
+              passm(na)=passm(na)+pp
+            endif
+          enddo
+        enddo
+        if (nn.gt.0) passm(na)=passm(na)/dble(nn)
+        if (nnsave.eq.0) nnsave=nn    ! save first time
+        if (nn.ne.nnsave) ifbw=.true.
+      enddo
+
+!--- calculate average - use mapcore in case this is qtr-core
+
+      nn=0
+      pp=0.0d0
+      pmin=passm(1)
+      pmax=passm(1)
+
+      do ja=1, jcore
+        do ia=1, icore
+          na=mapcore(ia,ja)
+          if (na.gt.0) then
+            pp=pp+passm(na)
+            nn=nn+1
+            pmax=max(pmax,passm(na))
+            pmin=min(pmin,passm(na))
+          endif
+        enddo    ! ia
+      enddo      ! ja
+
+      if (nn.gt.0) pp=pp/dble(nn)
+      write (*,125) nn
+      if (ifbw) then
+        write (*,*) 'WARNING: average of assemblies cannot be calculated because assemblies have different number of rods'
+      else
+        write (*,130) 'average', pp
+!!      if (abs(pp-1.0d0).gt.0.0001) write (0,*) '***** check normalization *****'   ! msg only valid for pin powers
+      endif
+      write (*,130) 'maximum', pmax
+      write (*,130) 'minimum', pmin
+  125 format (4x,'number of assemblies in full-core', i0)
+  130 format (4x,a,' assembly power  ', f8.4)
+
+      write (*,*)
+
+      fmt='(f8.4)'
+      if (pp.gt.100.0d0) fmt='(f8.2)'
+
+!--- print map
+
+      write (*,'("  **  ",50(4x,a2,2x))') (xlabel(i),i=1,icore)   ! labels are 2
+
+      do j=1, jcore
+        write (*,'(2x,a2,"- ")',advance='no') ylabel(j)
+        do i=1, icore
+           if (mapcore(i,j).eq.0) then
+             write (*,'(8x)',advance='no')
+           else
+             write (*,fmt,advance='no') passm(mapcore(i,j))
+           endif
+        enddo
+        write (*,*)
+      enddo
+
+      return
+      end subroutine print2d_assm_map
+!=======================================================================
+!
+!  Subroutine to print 2D max pin in assembly maps (2PIN)
+!
+!  2017/05/18 - added for Jim
+!
+!=======================================================================
+      subroutine print2d_2pin_map(title, npin, nassm, power, axial, icore, jcore, kd, mapcore, xlabel, ylabel)
+      implicit none
+      integer, intent(in) :: npin, nassm
+      integer, intent(in) :: icore, jcore, kd
+      integer, intent(in) :: mapcore(icore,jcore)
+      real(8), intent(in) :: power(npin,npin,kd,nassm)
+      real(8), intent(in) :: axial(kd)
+      character(len=*), intent(in) :: title
+      character(len=*), intent(in) :: xlabel(icore)
+      character(len=*), intent(in) :: ylabel(jcore)
+
+      character(len=8) :: fmt
+
+      integer          :: i, j, k
+      integer          :: ia, ja, na
+      real(8)          :: pp
+      real(8)          :: zave, zlen
+      real(8)          :: pin2d(icore,jcore)  ! automatic
+      real(8)          :: core2d      ! core max
+
+      write (*,'(/,1x,2a,/)') trim(title), ' - max 2D rod in each assembly (2PIN)'
+
+!--- calculate max pin in each assembly - use mapcore in case this is qtr-core
+
+      pin2d(:,:)=0.0d0
+      core2d=0.0d0
+
+      do ja=1, jcore
+        do ia=1, icore
+          na=mapcore(ia,ja)
+          if (na.gt.0) then
+
+            do j=1, npin
+              do i=1, npin
+                zave=0.0d0
+                zlen=0.0d0
+                do k=1, kd   ! loop over axial levels
+                  pp=power(i,j,k,na)
+                  if (pp.gt.0.0d0) then
+                    zave=zave+axial(k)*pp
+                    zlen=zlen+axial(k)
+                  endif
+                enddo
+                if (zlen.gt.0.0d0) then
+                  zave=zave/zlen
+                  pin2d(ia,ja)=max(pin2d(ia,ja),zave)
+                endif
+              enddo
+            enddo
+
+            core2d=max(core2d,pin2d(ia,ja))   ! core max
+
+          endif  ! na
+        enddo    ! ia
+      enddo      ! ja
+
+      fmt='(f8.4)'
+      if (core2d.gt.100.0d0) fmt='(f8.2)'
+
+!--- print map
+
+      write (*,'("  **  ",50(4x,a2,2x))') (xlabel(i),i=1,icore)   ! labels are 2
+
+      do ja=1, jcore
+        write (*,'(2x,a2,"- ")',advance='no') ylabel(ja)
+        do ia=1, icore
+           if (mapcore(ia,ja).eq.0) then
+             write (*,'(8x)',advance='no')
+           else
+             write (*,fmt,advance='no') pin2d(ia,ja)
+           endif
+        enddo
+        write (*,*)
+      enddo
+
+      return
+      end subroutine print2d_2pin_map

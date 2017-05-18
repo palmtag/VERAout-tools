@@ -5,7 +5,7 @@
 !
 !  Module to include all subroutines for reading HDF5 file
 !
-!  Copyright (c) 2014 Core Physics, Inc.
+!  Copyright (c) 2014-2017 Core Physics, Inc.
 !
 !  Distributed under the MIT license.
 !  See the LICENSE file in the main directory for details.

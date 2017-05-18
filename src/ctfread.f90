@@ -3,7 +3,7 @@
 !
 !  Program to read CTF HDF output file and print summary
 !
-!  Copyright (c) 2014-2016 Core Physics, Inc.
+!  Copyright (c) 2014-2017 Core Physics, Inc.
 !
 !  Distributed under the MIT license.
 !  See the LICENSE file in the main directory for details.
@@ -52,6 +52,7 @@
       real(8)            :: prated
       real(8)            :: zsum
       real(8)            :: xtemp
+      real(8)            :: xtemp2
       real(8)            :: qoi1, qoi2, qoi3, qoi4, qoi5
 
       logical            :: ifxst           ! flag if file or dataset exists
@@ -481,7 +482,7 @@
 
 !--- print overall statistics
 
-        call stat3d_simple(dist_label(idis),  npin,  kd, nassm, axial, tdist, xtemp)
+        call stat3d_simple(dist_label(idis),  npin,  kd, nassm, axial, tdist, xtemp, xtemp2)
         write (*,*) '(coolant averages do not include flow area weighting)'
 
 !--- 3D edits
