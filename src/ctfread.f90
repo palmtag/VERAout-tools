@@ -33,6 +33,7 @@
 !-----------------------------------------------------------------------
       use  hdf5
       use  mod_hdftools
+      use  mod_coregeom
       implicit none
 
       character(len=80)  :: filename
@@ -49,8 +50,6 @@
       integer            :: lltfu
       integer            :: llpow
 
-      real(8)            :: prated
-      real(8)            :: zsum
       real(8)            :: xtemp
       real(8)            :: xtemp2
       real(8)            :: qoi1, qoi2, qoi3, qoi4, qoi5
@@ -71,16 +70,11 @@
 
 ! input data
 
-      integer  :: isym                      ! core symmetry
-      integer  :: icore, jcore              ! size of core map
       integer  :: kd                        ! number of axial levels in pin maps
       integer  :: nassm                     ! number of assemblies in pin maps
       integer  :: npin                      ! number of pins across one side of assembly
       integer  :: npin_save                 ! number of pins across one side of assembly
       integer  :: nchan                     ! number of channels across one side of assembly
-
-      integer, allocatable :: mapcore(:,:)  ! core map (icore,jcore)
-      real(8), allocatable :: axial(:)      ! axial elevations
 
       real(8), allocatable :: temp1(:,:,:,:)
       real(8), allocatable :: tdist(:,:,:,:)
@@ -238,84 +232,9 @@
 !  Read CORE group
 !-------------------
 
+      call readcore(file_id, ifdebug)
+
       group_name='/CORE/'
-      call h5lexists_f(file_id, group_name, ifxst, ierror)
-      if (.not.ifxst) then
-        group_name=' '
-        write (*,*) 'CORE group not found on HDF file - is this an old file?'
-        stop 'CORE group not found on HDF file'
-      endif
-
-!--- symmetry
-
-      dataset=trim(group_name)//'core_sym'
-      call h5lexists_f(file_id, dataset, ifxst, ierror)
-      if (ifxst) then
-        call hdf5_read_integer(file_id, dataset, isym)
-        write (*,*) 'core symmetry ', isym
-      else
-        isym=-1
-      endif
-
-!--- rated power
-
-      dataset=trim(group_name)//'rated_power'
-      call h5lexists_f(file_id, dataset, ifxst, ierror)
-      if (ifxst) then
-        call hdf5_read_double(file_id, dataset, prated)
-        write (*,*) 'rated power ', prated
-      else
-        prated=0.0d0
-      endif
-
-!--- core map
-
-      icore=0
-      jcore=0
-
-      dataset=trim(group_name)//'core_map'
-      call h5lexists_f(file_id, dataset, ifxst, ierror)
-      if (ifxst) then
-        call h5info(file_id, dataset, itype, ndim, idim)
-        if (ndim.ne.2) stop 'invalid dimensions in core_map'
-        icore=idim(1)
-        jcore=idim(2)
-        if (ifdebug) write (*,*) 'debug: icore = ', icore
-        if (ifdebug) write (*,*) 'debug: jcore = ', jcore
-        allocate (mapcore(icore,jcore))
-        call hdf5_read_integer(file_id, dataset, icore, jcore, mapcore)
-
-        write (*,'(/,a)') ' Core Map:'
-        do j=1, jcore
-           write (*,'(2x,20i3)') (mapcore(i,j),i=1,icore)
-        enddo
-      endif
-
-!--- read axial heights
-
-      dataset=trim(group_name)//'channel_cell_height [cm]'
-      call h5info(file_id, dataset, itype, ndim, idim)
-      if (ndim.ne.1) stop 'invalid dimensions in cell heights'
-      kd=idim(1)
-      if (ifdebug) write (*,*) 'debug: kd = ', kd
-
-      allocate (axial(kd))
-
-      call hdf5_read_double(file_id, dataset, kd, i, axial)
-      if (i.ne.kd) then
-        stop 'invalid number of axial levels'
-      endif
-
-      if (ifdebug) then
-        write (*,*) 'debug: axial heights [cm]'
-        zsum=0.0d0
-        do i=kd, 1, -1
-           write (*,'(i4,f12.6)') i, axial(i)
-           zsum=zsum+axial(i)
-        enddo
-        write (*,'(a,f10.5)') ' sum of axial heights =', zsum
-
-      endif
 
 !--- read channel flow areas (2D array)
 

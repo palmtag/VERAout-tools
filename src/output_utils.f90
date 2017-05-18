@@ -1,4 +1,5 @@
-   subroutine stat3d (title, npin, kd, nassm, icore, jcore, mapcore, axial, power, pave, pmax, pmax2d)
+   subroutine stat3d (title, npin, kd, nassm, power, pave, pmax, pmax2d)
+   use mod_coregeom, only : icore, jcore, mapcore, axial
    implicit none
 !=======================================================================
 !
@@ -19,9 +20,6 @@
 !
 !=======================================================================
       integer, intent(in) :: npin, kd, nassm
-      integer, intent(in) :: icore, jcore
-      integer, intent(in) :: mapcore(icore,jcore)
-      real(8), intent(in) :: axial(kd)
       real(8), intent(in) :: power(npin,npin,kd,nassm)
       real(8), intent(out):: pave   ! average
       real(8), intent(out):: pmax   ! max 3pin
@@ -637,15 +635,12 @@
 !  Subroutine to print 2D Assembly Maps (assembly average values)
 !
 !=======================================================================
-      subroutine print2d_assm_map(title, npin, nassm, pow2, icore, jcore, mapcore, xlabel, ylabel)
+      subroutine print2d_assm_map(title, npin, nassm, pow2)
+      use mod_coregeom, only : icore, jcore, mapcore, xlabel, ylabel
       implicit none
       integer, intent(in) :: npin, nassm
-      integer, intent(in) :: icore, jcore
-      integer, intent(in) :: mapcore(icore,jcore)
       real(8), intent(in) :: pow2(npin,npin,nassm)
       character(len=*), intent(in) :: title
-      character(len=*), intent(in) :: xlabel(icore)
-      character(len=*), intent(in) :: ylabel(jcore)
 
       character(len=8) :: fmt
 
@@ -745,16 +740,13 @@
 !  2017/05/18 - added for Jim
 !
 !=======================================================================
-      subroutine print2d_2pin_map(title, npin, nassm, power, axial, icore, jcore, kd, mapcore, xlabel, ylabel)
+      subroutine print2d_2pin_map(title, npin, nassm, power, kd)
+      use mod_coregeom, only : icore, jcore, mapcore, axial, xlabel, ylabel
       implicit none
       integer, intent(in) :: npin, nassm
-      integer, intent(in) :: icore, jcore, kd
-      integer, intent(in) :: mapcore(icore,jcore)
+      integer, intent(in) :: kd
       real(8), intent(in) :: power(npin,npin,kd,nassm)
-      real(8), intent(in) :: axial(kd)
       character(len=*), intent(in) :: title
-      character(len=*), intent(in) :: xlabel(icore)
-      character(len=*), intent(in) :: ylabel(jcore)
 
       character(len=8) :: fmt
 
@@ -829,12 +821,10 @@
 !  General version that considers qtr-symmetry
 !
 !=======================================================================
-      subroutine calc_axoff (title, npin, kd, nassm, icore, jcore, mapcore, axial, power, axoff)
+      subroutine calc_axoff (title, npin, kd, nassm, power, axoff)
+      use mod_coregeom, only : icore, jcore, mapcore, axial
       implicit none
       integer, intent(in) :: npin, kd, nassm
-      integer, intent(in) :: icore, jcore
-      integer, intent(in) :: mapcore(icore,jcore)
-      real(8), intent(in) :: axial(kd)
       real(8), intent(in) :: power(npin,npin,kd,nassm)
       real(8), intent(out):: axoff  ! Axial offset
       character(len=*), intent(in) :: title
