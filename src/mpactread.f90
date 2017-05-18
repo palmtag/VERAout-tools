@@ -27,6 +27,7 @@
 !  2017/04/25 - add initial batch edit option for pin exposures
 !             - assumes assm_map is 2 character labels ***
 !  2017/05/18 - add 2PIN and 2PIN map for Jim
+!             - add ability to just print edits for a single statepoint
 !
 !-----------------------------------------------------------------------
 
@@ -37,17 +38,17 @@
       integer            :: idis
       integer            :: ierror
       integer            :: itype
-      integer            :: ndim         ! temp variable
-      integer            :: idim(10)     ! temp variable
-      integer            :: nstate=0     ! statepoint number
+      integer            :: ndim            ! temp variable
+      integer            :: idim(10)        ! temp variable
+      integer            :: nstate=0        ! statepoint number
+      integer            :: istate=0        ! user specified single statepoint option
 
-      integer            :: llpow       ! index for power array
-      integer            :: llexp       ! index for exposure array
-      integer            :: lltfu       ! index for fuel temperature
+      integer            :: llpow           ! index for power array
+      integer            :: llexp           ! index for exposure array
+      integer            :: lltfu           ! index for fuel temperature
 
       logical            :: ifxst
       logical            :: ifdebug=.false. ! debug flag
-      logical            :: ifoldstate=.false.
 
       character(len=80)  :: dataset         ! HDF dataset name
       character(len=12)  :: group_name
@@ -135,7 +136,7 @@
       state_nout(:)=0
       state_time(:)=-1.0d0
 
-      dist_label(1)='pin_powers'     ! must come first
+      dist_label(1)='pin_powers'     ! pin power must come first in list
       dist_label(2)='pin_fueltemps'
       dist_label(3)='pin_cladtemps'
       dist_label(4)='pin_modtemps'
@@ -152,7 +153,7 @@
 
       iargs = command_argument_count()
       if (iargs.lt.1) then
-        write (*,*) 'usage:  mpactread.exe [hdf5_file] {1D/2D/2DA/2PIN/3D} {time} {-dN}'
+        write (*,*) 'usage:  mpactread.exe [hdf5_file] {1D/2D/2DA/2PIN/3D} {time} {-dN} {-sN}'
         write (*,*) '  1D     print 1D edits'
         write (*,*) '  2D     print 2D pin edits'
         write (*,*) '  2DA    print 2D assembly average edits'
@@ -160,6 +161,7 @@
         write (*,*) '  3D     print 3D pin edits'
         write (*,*) '  time   print timing summary'
         write (*,*) '  batch  print batch edits'
+        write (*,*) '  -sN    edits a single statepoint N'
         write (*,*)
         write (*,*) 'distribution selections for -dN option:'
         do idis=1, maxdist
@@ -194,6 +196,8 @@
           ifbatch=.true.
         elseif (carg.eq.'-help' .or. carg.eq.'--help') then  ! add for Ben
           write (*,*) 'run mpactread with no command line arguments for help'
+        elseif (carg(1:2).eq.'-s') then   ! single statepoint output option
+          read (carg(3:),*) istate
         elseif (carg(1:2).eq.'-d') then
           read (carg(3:),*) idis
           if (idis.ge.1 .and. idis.le.maxdist) dist_print(idis)=.true.
@@ -211,6 +215,7 @@
       if (if2da)  write (*,*) '2DA assembly edits requested on command line'
       if (if2pin) write (*,*) '2PIN edits requested on command line'
       if (if3d)   write (*,*) '3D pin edits requested on command line'
+      if (istate.ne.0) write (*,*) 'single statepoint output selected'
 
       if (inputfile.eq.' ') then
         stop 'no input file specified on command line'
@@ -431,12 +436,6 @@
 !  Read STATE groups
 !---------------------
 
-!--- check if this file uses an old mpact STATE format
-
-      group_name='/STATE_1/'
-      call h5lexists_f(file_id, group_name, ifxst, ierror)
-      if (ifxst) ifoldstate=.true.
-
 ! 40 format (/,'--------------------------',&
 !            /,'  Reading statepoint ', i0, &
 !            /,'--------------------------')
@@ -445,11 +444,12 @@
       do
         nstate=nstate+1
 
-        if (ifoldstate) then
-          write (group_name,'(a,i0,a)') '/STATE_', nstate, '/'
+        if (istate.ne.0) then
+          write (group_name,'(a,i4.4,a)') '/STATE_', istate, '/'
         else
           write (group_name,'(a,i4.4,a)') '/STATE_', nstate, '/'
-        endif
+        endif 
+
         if (ifdebug) write (*,*) 'debug: state= ', group_name
 
 !--- check if statepoint exists
@@ -666,6 +666,8 @@
           call batchedit
         endif
 
+        if (istate.ne.0) exit    ! single statepoint option
+
       enddo   ! end of statepoint loop
 
 !--------------------------------------------------------------------------------
@@ -689,8 +691,8 @@
       deallocate (axial)
 
       nstate=nstate-1   ! decrease due to statepoint check
-
-
+    
+      if (istate.ne.0) nstate=1   ! fix up for single statepoint option
 
 !--- print summary
 
