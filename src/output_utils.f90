@@ -822,3 +822,112 @@
 
       return
       end subroutine print2d_2pin_map
+!=======================================================================
+!
+!  Subroutine to calculate core-wide axial offset
+!
+!  General version that considers qtr-symmetry
+!
+!=======================================================================
+      subroutine calc_axoff (title, npin, kd, nassm, icore, jcore, mapcore, axial, power, axoff)
+      implicit none
+      integer, intent(in) :: npin, kd, nassm
+      integer, intent(in) :: icore, jcore
+      integer, intent(in) :: mapcore(icore,jcore)
+      real(8), intent(in) :: axial(kd)
+      real(8), intent(in) :: power(npin,npin,kd,nassm)
+      real(8), intent(out):: axoff  ! Axial offset
+      character(len=*), intent(in) :: title
+
+!--- local
+
+      real(8)  :: zmesh(0:kd)    ! automatic
+
+      integer  :: i, j, k
+      integer  :: ia, ja, na
+      integer  :: kmid
+      real(8)  :: chi
+      real(8)  :: pp
+      real(8)  :: ptop, pbot
+      real(8)  :: ztop, zbot
+      real(8)  :: zmid
+      real(8)  :: zold
+
+      axoff=0.0d0
+      if (kd.eq.1) return   ! exit for 2D problems
+
+!--- calculate midpoint
+
+      zold=0.0d0
+      do k=1, kd
+        zmesh(k)=zold+axial(k)
+        zold=zmesh(k)
+      enddo
+      zmid=zmesh(kd)*0.5d0
+
+!d    write (*,*) 'debug: core height ', zmesh(kd)
+!d    write (*,*) 'debug: core mid    ', zmid
+
+      chi=1.0d0    ! set if boundaries align
+      kmid=0
+      zold=0.0d0
+      do k=1, kd
+        if (zmid.gt.zold .and. zmid.lt.zmesh(k)) then
+          kmid=k
+          chi=(zmid-zmesh(k-1))/axial(k)
+        endif
+        zold=zmesh(k)  ! protect bounds when k=1
+      enddo
+
+!d    write (*,*) 'debug: kmid ', kmid
+!d    write (*,*) 'debug: chi  ', chi
+
+!--- calculate 3D statistics
+
+      ptop=0.0d0     ! axial offset edits
+      pbot=0.0d0
+      ztop=0.0d0
+      zbot=0.0d0
+
+      do ja=1, jcore     ! loop over assemblies in full-core
+        do ia=1, icore   ! loop over assemblies in full-core
+        na=mapcore(ia,ja)
+        if (na.eq.0) cycle
+
+        do k=1, kd
+          do j=1, npin
+            do i=1, npin
+              pp=power(i,j,k,na)
+              if (pp.gt.0.0d0) then
+                if (k.lt.kmid) then
+                  pbot=pbot+axial(k)*pp
+                  zbot=zbot+axial(k)
+                elseif (k.gt.kmid) then
+                  ptop=ptop+axial(k)*pp
+                  ztop=ztop+axial(k)
+                else    ! core midplane in node
+                  pbot=pbot+axial(k)*chi*pp
+                  zbot=zbot+axial(k)*chi
+                  ptop=ptop+axial(k)*(1.0d0-chi)*pp
+                  ztop=ztop+axial(k)*(1.0d0-chi)
+                endif
+              endif
+            enddo  ! i
+          enddo    ! j
+        enddo      ! k
+
+      enddo    ! ia
+      enddo    ! ja
+
+!d    write (*,*) 'debug: zbot ', zbot
+!d    write (*,*) 'debug: ztop ', ztop
+
+      ptop=ptop/ztop
+      pbot=pbot/zbot
+      axoff=(ptop-pbot)/(ptop+pbot)*100.0d0
+
+      write (*,210) trim(title), axoff
+  210 format (2x,a,' A/O  ',f10.4,' %')
+
+      return
+      end subroutine calc_axoff

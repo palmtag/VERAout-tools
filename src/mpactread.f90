@@ -28,6 +28,7 @@
 !             - assumes assm_map is 2 character labels ***
 !  2017/05/18 - add 2PIN and 2PIN map for Jim
 !             - add ability to just print edits for a single statepoint
+!             - add axial offset edit
 !
 !-----------------------------------------------------------------------
 
@@ -106,6 +107,7 @@
       real(8)  :: state_3exp(maxstate)
       real(8)  :: state_3pin(maxstate)
       real(8)  :: state_2pin(maxstate)
+      real(8)  :: state_axoff(maxstate)
       integer  :: state_nout(maxstate)
       real(8)  :: state_time(maxstate)
 
@@ -133,6 +135,7 @@
       state_3exp(:)=0.0d0
       state_3pin(:)=0.0d0
       state_2pin(:)=0.0d0
+      state_axoff(:)=0.0d0
       state_nout(:)=0
       state_time(:)=-1.0d0
 
@@ -161,7 +164,8 @@
         write (*,*) '  3D     print 3D pin edits'
         write (*,*) '  time   print timing summary'
         write (*,*) '  batch  print batch edits'
-        write (*,*) '  -sN    edits a single statepoint N'
+        write (*,*) '  -sM    edits a single statepoint M'
+        write (*,*) '  -dN    distribution N (see below)'
         write (*,*)
         write (*,*) 'distribution selections for -dN option:'
         do idis=1, maxdist
@@ -369,7 +373,7 @@
       endif
 
       write (*,'(/,a)') ' Axial Edit Boundaries'
-      do j=1, naxial+1
+      do j=naxial+1, 1, -1
         write (*,'(i5,20f12.4)') j-1, axial(j)
       enddo
       if (naxial.eq.0) then
@@ -623,6 +627,8 @@
           if (idis.eq.llpow) then
             state_3pin(nstate)=xtemp
             state_2pin(nstate)=xtemp2
+            call calc_axoff (dist_label(idis), npin, kd, nassm, icore, jcore, mapcore, &
+                 axial, power, state_axoff(nstate))
           endif
           if (idis.eq.llexp) then
             state_3exp(nstate)=xtemp
@@ -700,14 +706,15 @@
       do n=1, nstate
         write (*,120) n, state_xexpo(n), state_xefpd(n), state_xkeff(n), &
                state_boron(n), state_3pin(n), state_2pin(n), state_3exp(n), state_flow(n), &
-               state_power(n), state_tinlet(n)
+               state_power(n), state_tinlet(n), state_axoff(n)
       enddo
   110 format (/,'==================================',&
               /,'       Statepoint Summary', &
               /,'==================================',&
-              /,'   N   exposure  exposure  eigenvalue   boron      3PIN      2PIN      3EXP      flow     power    tinlet')
+              /,'   N   exposure  exposure  eigenvalue   boron      3PIN      2PIN      3EXP', &
+                '      flow     power    tinlet     A/O(%)')
 
-  120 format (i4, f10.4, f10.2, f12.6, f10.2, 6f10.4)
+  120 format (i4, f10.4, f10.2, f12.6, f10.2, 7f10.4)
 
 !--- timing summary
 
