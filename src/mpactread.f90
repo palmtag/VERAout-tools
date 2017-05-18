@@ -2,7 +2,7 @@
    use  hdf5
    use  mod_hdftools
    use  mod_batch
-   use  mod_coregeom, only : readcore, mapcore, icore, jcore, naxial, axial
+   use  mod_coregeom, only : readcore, mapcore, icore, jcore, axial, nassm, npin, kd
    implicit none
 !=======================================================================
 !
@@ -39,8 +39,6 @@
       integer            :: i, j, k, n
       integer            :: idis
       integer            :: ierror
-      integer            :: itype
-      integer            :: ndim            ! temp variable
       integer            :: idim(10)        ! temp variable
       integer            :: nstate=0        ! statepoint number
       integer            :: istate=0        ! user specified single statepoint option
@@ -60,10 +58,6 @@
 ! input data
 
       integer  :: iver                      ! output file version number
-
-      integer  :: kd                        ! number of axial levels in pin maps
-      integer  :: nassm                     ! number of assemblies in pin maps
-      integer  :: npin                      ! pin data
 
       real(8)  :: xtemp                     ! temp value
       real(8)  :: xtemp2                    ! temp value
@@ -235,9 +229,9 @@
         stop
       endif
 
-!--------------------------------------------------------------------------------
-! Read top level HDF data
-!--------------------------------------------------------------------------------
+!---------------------------
+!  Read top level HDF data
+!---------------------------
 
       xkeff=-100.0d0
       xexpo=-100.0d0
@@ -299,6 +293,7 @@
         call h5lexists_f(file_id, group_name, ifxst, ierror)
         if (.not.ifxst) then
           if (ifdebug) write (*,*) 'dataset not found - exiting'
+          nstate=nstate-1
           goto 800
         endif
 
@@ -393,30 +388,12 @@
 !--- allocate arrays if first statepoint
 
         if (nstate.eq.1) then
-          dataset=trim(group_name)//'pin_powers'
-          call h5info(file_id, dataset, itype, ndim, idim)
-
-          nassm=idim(1)    ! order (nassm, kd, npin, npin)
-          kd   =idim(2)
-          npin =idim(4)
           if (ifdebug) then
-            write (*,*) 'debug pin: ndim  = ', ndim
+            write (*,*) 'debug: allocating pin arrays'
             write (*,*) 'debug pin: nassm = ', nassm
             write (*,*) 'debug pin: kd    = ', kd
             write (*,*) 'debug pin: npin  = ', npin
           endif
-
-          if (ndim.ne.4)  stop 'invalid dimensions in pin data'
-          if (nassm.eq.0) stop 'invalid number of assemblies in pin data'
-          if (npin .eq.0) stop 'invalid number of pins in pin data'
-          if (idim(3).ne.idim(4)) stop 'invalid npin in pin data'
-
-          if (naxial.ne.kd) then
-            stop 'mismatch found between axial levels in input and number of levels of output'
-          endif
-
-          if (ifdebug) write (*,*) 'debug: allocating pin arrays'
-
           allocate (temp4d(nassm, kd, npin, npin))
           allocate (power    (npin, npin, kd, nassm))    ! save power
           allocate (tdist    (npin, npin, kd, nassm))    ! 3D distributions
@@ -475,7 +452,7 @@
           endif
 
           if (idis.eq.llpow) then    ! special edits just for power
-            call check_normalization(npin, kd, nassm, tdist)
+            call check_normalization(tdist)
           endif
 
           if (if3d) then
@@ -529,10 +506,6 @@
       deallocate (mapcore)
       deallocate (axial)
 
-      nstate=nstate-1   ! decrease due to statepoint check
-    
-      if (istate.ne.0) nstate=1   ! fix up for single statepoint option
-
 !--- print summary
 
       write (*,110)
@@ -574,10 +547,9 @@
 !  Debug subroutine to check power normalization
 !
 !=======================================================================
-      subroutine check_normalization(npin, kd, nassm, power)
-      use mod_coregeom, only : axial, icore, jcore, mapcore
+      subroutine check_normalization(power)
+      use mod_coregeom, only : axial, icore, jcore, mapcore, npin, kd, nassm
       implicit none
-      integer, intent(in) :: npin, kd, nassm
       real(8), intent(in) :: power(npin,npin,kd,nassm)
 
 !--- local

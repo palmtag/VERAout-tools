@@ -12,16 +12,19 @@
 !=======================================================================
 
       integer  :: isym                      ! core symmetry
-      integer  :: naxial                    ! number of axial levels
-      integer  :: icore, jcore              ! core size
+      integer  :: icore, jcore              ! core size (assemblies)
+      integer  :: nassm                     ! number of assemblies in core
+      integer  :: kd
+      integer  :: npin
 
       real(8)  :: rated_power               ! rated flow
       real(8)  :: rated_flow                ! rated power
       real(8)  :: apitch                    ! assembly pitch
 
-      integer, allocatable :: mapcore(:,:)  ! core map
+      integer, allocatable :: mapcore(:,:)  ! core assembly map
 
       real(8), allocatable :: axial(:)      ! axial elevations
+      real(8), allocatable :: pinload(:,:,:,:)  ! pin loadings (npin,npin,kd,nassm)
 
       character(len=2), allocatable :: xlabel(:)  ! assembly map labels
       character(len=2), allocatable :: ylabel(:)  ! assembly map labels
@@ -43,9 +46,10 @@
 
 !--- local
 
-      integer :: i, j, n
+      integer :: i, j, k, n
       integer :: ierror
       integer :: itype
+      integer :: naxial          ! number of axial levels
       integer :: ndim            ! temp variable
       integer :: idim(10)        ! temp variable
 
@@ -54,9 +58,9 @@
       character(len=80)  :: dataset         ! HDF dataset name
       character(len=12)  :: group_name
 
-!-------------------
-!  Read CORE group
-!-------------------
+      real(8), allocatable :: temp4d(:,:,:,:)
+
+!--- initialize
 
       isym=-100           ! core symmetry
       naxial=0            ! number of axial edit bounds
@@ -69,7 +73,11 @@
 
       idim(:)=0
 
-! check of CORE group exists (group may not exist on old MPACT files and all data will be in root)
+!-------------------
+!  Read CORE group
+!-------------------
+
+! check if CORE group exists (group may not exist on old MPACT files and all data will be in root)
 
       group_name='/CORE/'
       call h5lexists_f(file_id, group_name, ifxst, ierror)
@@ -180,6 +188,49 @@
           write (*,'(i5,20f12.4)') j, axial(j)
         enddo
       endif
+
+!--- pin loadings
+
+      dataset=trim(group_name)//'initial_mass'
+      call h5info(file_id, dataset, itype, ndim, idim)
+
+      nassm=idim(1)    ! order (nassm, kd, npin, npin)
+      kd   =idim(2)
+      npin =idim(4)
+      if (ifdebug) then
+        write (*,*) 'debug pin: ndim  = ', ndim
+        write (*,*) 'debug pin: nassm = ', nassm
+        write (*,*) 'debug pin: kd    = ', kd
+        write (*,*) 'debug pin: npin  = ', npin
+      endif
+
+      if (ndim.ne.4)  stop 'invalid dimensions in pin data'
+      if (nassm.eq.0) stop 'invalid number of assemblies in pin data'
+      if (npin .eq.0) stop 'invalid number of pins in pin data'
+      if (idim(3).ne.idim(4)) stop 'invalid npin in pin data'
+
+      if (naxial.ne.kd) then
+        stop 'mismatch found between axial levels in input and number of levels of output'
+      endif
+
+      allocate (temp4d(nassm, kd, npin, npin))   ! temporary
+      allocate (pinload(npin, npin, kd, nassm))
+
+      call hdf5_read_double(file_id, dataset, nassm, kd, npin, npin, temp4d)
+
+      do n=1, nassm
+        do k=1, kd
+          do j=1, npin
+            do i=1, npin
+              pinload(i,j,k,n)=temp4d(n,k,j,i)
+            enddo
+          enddo
+        enddo
+      enddo
+
+      deallocate (temp4d)
+
+!d    call print_3D_pin_map('pin loading', npin, kd, nassm, pinload)
 
 !--- temp define edit labels
 

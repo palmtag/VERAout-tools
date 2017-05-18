@@ -33,13 +33,13 @@
 !-----------------------------------------------------------------------
       use  hdf5
       use  mod_hdftools
-      use  mod_coregeom
+      use  mod_coregeom, only : readcore, axial
       implicit none
 
       character(len=80)  :: filename
       character(len=80)  :: carg            ! command line argument
       integer            :: iargs           ! number of command line arguments
-      integer            :: i, j
+      integer            :: i
       integer            :: idis
       integer            :: ierror
       integer            :: itype
