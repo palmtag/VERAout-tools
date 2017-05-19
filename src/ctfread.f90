@@ -56,6 +56,7 @@
 
       logical            :: ifxst           ! flag if file or dataset exists
       logical            :: ifdebug=.false. ! debug flag
+      logical            :: ifload =.false. ! print loadings
 
       character(len=80)  :: dataset         ! HDF dataset name
       character(len=22)  :: state_name      ! HDF group name for STATE
@@ -232,7 +233,7 @@
 !  Read CORE group
 !-------------------
 
-      call readcore(file_id, ifdebug)
+      call readcore(file_id, ifdebug, ifload)
 
       group_name='/CORE/'
 

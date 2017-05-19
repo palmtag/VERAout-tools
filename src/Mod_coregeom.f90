@@ -36,13 +36,14 @@
 !   Subroutine to read CORE block from VERAout HDF file
 !
 !=======================================================================
-      subroutine readcore(file_id, ifdebug)
+      subroutine readcore(file_id, ifdebug, ifload)
       use hdf5
       use mod_hdftools
       implicit none
 
       integer(hid_t), intent(in) :: file_id
       logical       , intent(in) :: ifdebug
+      logical       , intent(in) :: ifload
 
 !--- local
 
@@ -222,7 +223,7 @@
         do k=1, kd
           do j=1, npin
             do i=1, npin
-              pinload(i,j,k,n)=temp4d(n,k,j,i)
+              pinload(i,j,k,n)=temp4d(n,k,i,j)  ! note i,j are not transposed
             enddo
           enddo
         enddo
@@ -230,7 +231,9 @@
 
       deallocate (temp4d)
 
-!d    call print_3D_pin_map('pin loading', npin, kd, nassm, pinload)
+      call fixload()   ! fix pin loading
+
+      if (ifload) call print_3D_pin_map('pin loading', npin, kd, nassm, pinload)
 
 !--- temp define edit labels
 
@@ -269,4 +272,83 @@
 
       end subroutine readcore
 
+!=======================================================================
+!
+!  Fix error in MPACT pin loadings
+!
+!  The loadings are not expanded to full-assembly on the edge assemblies
+!  like the other pin exposures.  This causes a lot of problems when
+!  trying to do exposure collapses
+!
+!=======================================================================
+
+      subroutine fixload()
+      implicit none
+
+      integer :: i, j, k
+      integer :: ia, ja, na
+      integer :: iac, jac
+!     integer :: nl
+
+      if (isym.ne.4) return   ! only do for qtr-core
+
+      if (mod(icore,2).eq.0) return   ! skip for even cores
+
+      write (*,*) 'fixload isym=', isym
+
+      iac=(icore+1)/2   ! center
+      jac=(jcore+1)/2
+
+!--- fix top edge
+
+      ja=jac  ! top row, fold up
+      do ia=iac, icore
+        na=mapcore(ia,ja)
+        do k=1, kd
+          do j=1, (npin+1)/2
+            do i=1, npin
+              if (pinload(i,j,k,na).eq.0.0d0) then
+                pinload(i,j,k,na)=pinload(i,npin-j+1,k,na)
+              endif
+            enddo
+          enddo
+        enddo
+      enddo
+
+!--- fix left edge
+
+      ia=iac  ! top row, fold up
+      do ja=jac, jcore
+        na=mapcore(ia,ja)
+        do k=1, kd
+          do j=1, npin
+            do i=1, (npin+1)/2
+               if (pinload(i,j,k,na).eq.0.0d0) then
+                 pinload(i,j,k,na)=pinload(npin-i+1,j,k,na)
+               endif
+            enddo
+          enddo
+        enddo
+      enddo
+
+!--- double check final results
+
+!     write (*,*) 'final check on loading:'
+!     do na=1, nassm
+!       do k=1, kd
+!         nl=0
+!         do j=1, npin
+!           do i=1, npin
+!              if (pinload(i,j,k,na).gt.0.0d0) nl=nl+1
+!           enddo
+!         enddo
+!         if (nl.ne.264) then
+!           write (*,*) 'ERROR: final loading error na, k, nload ', na, k, nl
+!         endif
+!       enddo
+!     enddo
+
+      return
+      end subroutine fixload
+!=======================================================================
    end module mod_coregeom

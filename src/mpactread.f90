@@ -49,6 +49,7 @@
 
       logical            :: ifxst
       logical            :: ifdebug=.false. ! debug flag
+      logical            :: ifload =.false. ! print pin loadings
 
       character(len=80)  :: dataset         ! HDF dataset name
       character(len=12)  :: group_name
@@ -141,14 +142,15 @@
 
       iargs = command_argument_count()
       if (iargs.lt.1) then
-        write (*,*) 'usage:  mpactread.exe [hdf5_file] {1D/2D/2DA/2PIN/3D} {time} {-dN} {-sN}'
+        write (*,*) 'usage:  mpactread.exe [hdf5_file] {1D/2D/2DA/2PIN/3D} {-load} {-time} {-batch} {-dN} {-sN}'
         write (*,*) '  1D     print 1D edits'
         write (*,*) '  2D     print 2D pin edits'
         write (*,*) '  2DA    print 2D assembly average edits'
         write (*,*) '  2PIN   print max 2D assembly rod edits'
         write (*,*) '  3D     print 3D pin edits'
-        write (*,*) '  time   print timing summary'
-        write (*,*) '  batch  print batch edits'
+        write (*,*) '  -load  print pin loadings'
+        write (*,*) '  -time  print timing summary'
+        write (*,*) '  -batch print batch edits'
         write (*,*) '  -sM    edits a single statepoint M'
         write (*,*) '  -dN    distribution N (see below)'
         write (*,*)
@@ -179,9 +181,11 @@
           if1d=.true.
         elseif (carg.eq.'debug') then
           ifdebug=.true.
-        elseif (carg.eq.'time') then
+        elseif (carg.eq.'-load') then   ! print loadings
+          ifload=.true.
+        elseif (carg.eq.'-time') then
           iftime=.true.
-        elseif (carg.eq.'batch') then
+        elseif (carg.eq.'-batch') then
           ifbatch=.true.
         elseif (carg.eq.'-help' .or. carg.eq.'--help') then  ! add for Ben
           write (*,*) 'run mpactread with no command line arguments for help'
@@ -260,7 +264,7 @@
 !  Read CORE group
 !-------------------
 
-      call readcore(file_id, ifdebug)
+      call readcore(file_id, ifdebug, ifload)
 
 !--- initialize batch edits
 
@@ -284,7 +288,7 @@
           write (group_name,'(a,i4.4,a)') '/STATE_', istate, '/'
         else
           write (group_name,'(a,i4.4,a)') '/STATE_', nstate, '/'
-        endif 
+        endif
 
         if (ifdebug) write (*,*) 'debug: state= ', group_name
 
@@ -422,7 +426,7 @@
             do k=1, kd
               do j=1, npin
                 do i=1, npin
-                  tdist(i,j,k,n)=temp4d(n,k,j,i)
+                  tdist(i,j,k,n)=temp4d(n,k,i,j)    ! note i,j are not transposed
                 enddo
               enddo
             enddo

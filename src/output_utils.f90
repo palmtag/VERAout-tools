@@ -374,10 +374,10 @@
       kpin=0
       pmin=2.0d20
       pmax=0.0d0
-      do i=1, npin
+      do j=1, npin
         line=' '
         m=0
-        do j=1, npin
+        do i=1, npin
           pp=power(i,j,klev,ia)
           if (pp.eq.0.0) then
             line(m+1:m+7)='   --- '
