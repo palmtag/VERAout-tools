@@ -525,78 +525,96 @@
 !
 !  Collapse 3D edits to 2D
 !
+! 05/19/2017 - took out 3D max/min edits, these are calculated elsewhere
+!            - added option to collapse with loadings
+!
 !=======================================================================
-      subroutine collapse2d(label, npin, kd, nassm, axial, power, pow2d)
+      subroutine collapse2d(label, npin, kd, nassm, axial, power, pow2d, ifload)
+      use mod_coregeom, only : pinload
       implicit none
       character(len=*), intent(in) :: label
       integer, intent(in) :: npin, kd, nassm
       real(8), intent(in) :: power(npin,npin,kd,nassm)
       real(8), intent(in) :: axial(kd)
       real(8), intent(out):: pow2d(npin,npin,nassm)
+      logical, intent(in) :: ifload   ! flag to weight with loadings
 
 !--- local
 
       integer :: i, j, k
       integer :: na
       integer :: nhot
-      integer :: k3min(4)
-      integer :: k3max(4)
       integer :: k2min(3)
       integer :: k2max(3)
-      real(8) :: pp
+      real(8) :: pp, pl
       real(8) :: zave, zrod
-      real(8) :: c3min, c3max
       real(8) :: c2min, c2max
-      real(8) :: cave, clen
 
       pow2d(:,:,:)=0.0d0
 
-      nhot=0
-      c3max=0.0d0        ! 3D core max
-      c3min=1.0d20       ! 3D core min
+      write (*,'(/,1x,a,a)') 'Collapsing 3D distributions to 2D - ', trim(label)
+
+!--- collapse to 2D  (loading)
+
+      if (ifload) then
+
+        write (*,*) 'performing axial collapse with pin loadings'
+        do na=1, nassm     ! loop over assemblies
+          do j=1, npin
+            do i=1, npin
+              zrod=0.0d0
+              zave=0.0d0   ! 2D axial height with power
+              do k=1, kd   ! loop over axial levels
+                pp=power(i,j,k,na)
+                if (pp.gt.0.0d0) then
+                  pl=pinload(i,j,k,na)
+                  zrod=zrod+axial(k)*pl*pp
+                  zave=zave+axial(k)*pl
+                  if (pl.eq.0.0d0) write (*,*) 'WARNING: zero loading used in collapse'
+                endif
+              enddo
+              if (zave.gt.0.0d0) pow2d(i,j,na)=zrod/zave
+            enddo
+          enddo
+        enddo      ! na
+
+      else
+
+!--- collapse to 2D  (no loading)
+
+        do na=1, nassm     ! loop over assemblies
+          do j=1, npin
+            do i=1, npin
+              zrod=0.0d0
+              zave=0.0d0   ! 2D axial height with power
+              do k=1, kd   ! loop over axial levels
+                pp=power(i,j,k,na)
+                if (pp.gt.0.0d0) then
+                  zrod=zrod+axial(k)*pp
+                  zave=zave+axial(k)
+                endif
+              enddo
+              if (zave.gt.0.0d0) pow2d(i,j,na)=zrod/zave
+            enddo
+          enddo
+        enddo      ! na
+
+      endif   ! pin loadings
+
+!--- find max/min
+
       c2max=0.0d0        ! 2D core max
       c2min=1.0d20       ! 2D core min
-      cave=0.0d0         ! core average
-      clen=0.0d0         ! core fuel length
-      k3max(:)=0         ! 3D core max i, j, k, n
-      k3min(:)=0         ! 3D core min i, j, k, n
       k2max(:)=0         ! 2D core max i, j, n
       k2min(:)=0         ! 2D core min i, j, n
-
-      write (*,'(/,1x,a,a)') 'Collapsing 3D edits to 2D - ', trim(label)
-
-!--- collapse to 2D
+      nhot=0
 
       do na=1, nassm     ! loop over assemblies
         do j=1, npin
           do i=1, npin
-            zrod=0.0d0
-            zave=0.0d0   ! 2D axial height with power
-            do k=1, kd   ! loop over axial levels
-              pp=power(i,j,k,na)
-              if (pp.gt.0.0d0) then
-                nhot=nhot+1
-                zrod=zrod+axial(k)*pp
-                zave=zave+axial(k)
-                if (pp.lt.c3min) then
-                  c3min=pp
-                  k3min(1)=i
-                  k3min(2)=j
-                  k3min(3)=k
-                  k3min(4)=na
-                endif
-                if (pp.gt.c3max) then
-                  c3max=pp
-                  k3max(1)=i
-                  k3max(2)=j
-                  k3max(3)=k
-                  k3max(4)=na
-                endif
-              endif
-            enddo
-            if (zave.gt.0.0d0) then
-              pow2d(i,j,na)=zrod/zave
-              pp=pow2d(i,j,na)
+            pp=pow2d(i,j,na)
+            if (pp.gt.0.0d0) then 
+              nhot=nhot+1
               if (pp.lt.c2min) then
                 c2min=pp
                 k2min(1)=i
@@ -616,16 +634,11 @@
 
       if (nhot.eq.0) then    ! protect edits
         c2min=0.0d0
-        c3min=0.0d0
       endif
 
-      write (*,180) 'max', c3max, k3max(:)
-      write (*,180) 'min', c3min, k3min(:)
       write (*,190) 'max', c2max, k2max(:)
       write (*,190) 'min', c2min, k2min(:)
-
-  180 format (' 3D ',a,' in core =', f10.4,' at (i,j,k,na)', 4i4)
-  190 format (' 2D ',a,' in core =', f10.4,' at (i,j,na)  ', 2i4,4x,i4)
+  190 format ('   2D ',a,' in core =', f10.4,' at (i,j,na)  ', 2i4,4x,i4)
 
       return
       end subroutine collapse2d

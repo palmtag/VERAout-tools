@@ -48,6 +48,7 @@
       integer            :: lltfu           ! index for fuel temperature
 
       logical            :: ifxst
+      logical            :: iflag
       logical            :: ifdebug=.false. ! debug flag
       logical            :: ifload =.false. ! print pin loadings
 
@@ -435,7 +436,6 @@
           if (idis.eq.llpow) then
             power=tdist        ! save 3D power - needed for mask
           endif
-          if (.not.dist_print(idis)) cycle    ! skip if this was power
 
           if (idis.eq.lltfu) then    ! apply mask to fuel temperatures
             call masktfu(npin,  kd, nassm, power, tdist)
@@ -451,8 +451,15 @@
             state_3exp(nstate)=xtemp
           endif
 
+          if (.not.dist_print(idis)) cycle    ! skip full edits if this was power
+
           if (if2d .or. if2da) then
-            call collapse2d(dist_label(idis), npin, kd, nassm, axial, tdist, tdist2d)
+            if (idis.eq.llexp) then
+              iflag=.true.   ! collapse with pin loading
+            else
+              iflag=.false.
+            endif
+            call collapse2d(dist_label(idis), npin, kd, nassm, axial, tdist, tdist2d, iflag)
           endif
 
           if (idis.eq.llpow) then    ! special edits just for power

@@ -294,8 +294,6 @@
 
       if (mod(icore,2).eq.0) return   ! skip for even cores
 
-      write (*,*) 'fixload isym=', isym
-
       iac=(icore+1)/2   ! center
       jac=(jcore+1)/2
 
