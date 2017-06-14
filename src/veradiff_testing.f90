@@ -91,7 +91,7 @@
 
 !--- open file1
 
-      call h5fopen_f (fname1, H5F_ACC_RDWR_F, file_id1, ierror)
+      call h5fopen_f (fname1, H5F_ACC_RDONLY_F, file_id1, ierror)
       if (ierror<0) then
         write (*,'(3a)') 'ERROR: H5 input file ',trim(fname1),' could not be opened'
         nfail=nfail+1
@@ -100,7 +100,7 @@
 
 !--- open file2
 
-      call h5fopen_f (fname2, H5F_ACC_RDWR_F, file_id2, ierror)
+      call h5fopen_f (fname2, H5F_ACC_RDONLY_F, file_id2, ierror)
       if (ierror<0) then
         write (*,'(3a)') 'ERROR: H5 input file ',trim(fname2),' could not be opened'
         nfail=nfail+1
