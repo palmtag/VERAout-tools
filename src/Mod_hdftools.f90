@@ -41,8 +41,10 @@
 !  Routines to write:
 !
 !     hwrite_integer(file_id, dataset, idims, xvar)
+!     hwrite_integer_scalar(file_id, dataset, xvar)
 !     hwrite_real   (file_id, dataset, idims, xvar)
 !     hwrite_double (file_id, dataset, idims, xvar)
+!     hwrite_double_scalar (file_id, dataset, xvar)
 !     hwrite_string (file_id, dataset, strbuf)
 !     hwrite_stringx(file_id, dataset, idims, xvar) **** fix: arrays of strings
 !
@@ -61,15 +63,19 @@
 !     H5T   Datatypes
 !     H5Z   Filters
 !
-!  Note: hid_t is 4 on the linux boxes I tested
+!  Note: hid_t is equal to 4 on the linux boxes I tested
 !
 !
+!=======================================================================
 !
 !  8/3/2016 - updated with optional argument to hwrite_double to allow user to update
 !             a dataset instead of creating a new one
 !             Need to port this ability to other write subroutines!!!
 !          
-!
+!  8/8/2017 - added hwrite_double_scalar
+!           - added hwrite_integer_scalar
+!            *** still need to write real scalars
+!            *** and should write a generic interface
 !
 !=======================================================================
 
@@ -1323,6 +1329,91 @@
       end subroutine hwrite_real
 !=======================================================================
 !
+!  Subroutine to write a scalar double
+!
+!  2017/08/08 - added, previously you had to write a scalar as a 1D array
+!
+!=======================================================================
+      subroutine hwrite_double_scalar(file_id, dataset, xvar, update)
+      use hdf5
+      implicit none
+
+      character(len=*), intent(in) :: dataset      ! Dataset name
+      integer(hid_t),   intent(in) :: file_id      ! File identifier
+      real(8),          intent(in) :: xvar         ! scalar
+      logical, optional,intent(in) :: update       ! set to true if update data instead of new data
+
+!--- local
+
+!!    integer,          intent(in) :: idims(10)    ! Dataset dimensions
+
+      integer(hid_t) :: dset_id       ! Dataset identifier
+      integer(hid_t) :: dspace_id     ! Dataspace identifier
+      integer(hid_t) :: dtype_id      ! data type to be written
+      integer(hsize_t) :: idimht(10)  ! Dataset dimensions - using HDF size
+
+      integer  :: ierror              ! Error flag
+
+      logical  :: ifupdate            ! local copy of optional argument
+
+      if (present(update)) then
+        ifupdate=update
+      else
+        ifupdate=.false.
+      endif
+
+!--- calculate rank from idims array
+
+      dtype_id=H5T_NATIVE_DOUBLE
+
+      write (*,'(2a,i3)') ' writing dataspace name: ', dataset
+
+      if (ifupdate) then     ! open existing dataset
+
+        call h5dopen_f(file_id, dataset, dset_id, ierror)
+        if (ierror.ne.0) call h5_fatal('h5dopen_f','ierror')
+
+      else
+
+! Create a new dataspace (information about array)
+
+!*** to create a true Scalar value (not a 1D array with one element),
+!*** you could use "h5screate_f(H5S_SCALAR_F, dspace_id, ierror)   (not verified)
+
+!!      call h5screate_f(dtype_id, dspace_id, ierror)
+        call h5screate_f(H5S_SCALAR_F, dspace_id, ierror)
+        if (ierror.ne.0) call h5_fatal('h5screate_f','ierror')
+
+! Create the dataset with default properties.
+
+        call h5dcreate_f(file_id, dataset, dtype_id, dspace_id, dset_id, ierror)
+        if (ierror.ne.0) call h5_fatal('h5dcreate_f','ierror')
+
+      endif
+
+! Write dataset
+!     (idimht is ignored for scalars)
+
+      call h5dwrite_f(dset_id, dtype_id, xvar, idimht, ierror)
+      if (ierror.ne.0) call h5_fatal('h5dwrite_f','ierror')
+
+! End access to the dataset and release resources used by it. (release dataset id)
+
+      call h5dclose_f(dset_id, ierror)
+      if (ierror.ne.0) call h5_fatal('h5dclose_f','ierror')
+
+! Terminate access to the data space.  (release dataspace id)
+
+      if (.not. ifupdate) then
+        call h5sclose_f(dspace_id, ierror)
+        if (ierror.ne.0) call h5_fatal('h5sclose_f','ierror')
+      endif
+
+      return
+      end subroutine hwrite_double_scalar
+
+!=======================================================================
+!
 !  Wrapper Subroutine to write a double array to an HDF5 file
 !
 !  file_id - file id returned by HDF5 open statement
@@ -1390,7 +1481,7 @@
 
 ! Create a new dataspace (information about array)
 
-!*** to create a true Scalar value (not a 1D array with one element), 
+!*** to create a true Scalar value (not a 1D array with one element),
 !*** you could use "h5screate_f(H5S_SCALAR_F, dspace_id, ierror)   (not verified)
 
         call h5screate_simple_f(irank, idimht, dspace_id, ierror)
@@ -1422,6 +1513,72 @@
 
       return
       end subroutine hwrite_double
+
+!=======================================================================
+!
+!  Wrapper Subroutine to write a integer array to an HDF5 file
+!
+!  file_id - file id returned by HDF5 open statement
+!  dataset - data set name
+!  idims   - array that specifies the size of each dimension
+!       set any unused dimensions to zero
+!       examples:
+!         idims= 100,  0,  0, 0, 0, 0, 0, 0, 0, 0   for 1D array
+!         idims= 100, 20,  0, 0, 0, 0, 0, 0, 0, 0   for 2D array
+!         idims= 100, 20, 16, 0, 0, 0, 0, 0, 0, 0   for 3D array, etc.
+!  xvar    - data array to be written
+!
+!=======================================================================
+      subroutine hwrite_integer_scalar(file_id, dataset, xvar)
+      implicit none
+
+      character(len=*), intent(in) :: dataset      ! Dataset name
+      integer(hid_t),   intent(in) :: file_id      ! File identifier
+      integer,          intent(in) :: xvar         ! scalar
+
+!--- local
+
+      integer(hid_t) :: dset_id       ! Dataset identifier
+      integer(hid_t) :: dspace_id     ! Dataspace identifier
+      integer(hid_t) :: dtype_id      ! data type to be written
+
+      integer  :: i
+      integer  :: ierror              ! Error flag
+      integer(hsize_t) :: idimht(10)  ! Dataset dimensions - using HDF size
+
+!--- calculate rank from idims array
+
+      dtype_id=H5T_NATIVE_INTEGER
+
+      write (*,'(2a,i3)') ' writing dataspace name: ', dataset
+
+! Create the dataspace (information about scalar)
+
+      call h5screate_f(H5S_SCALAR_F, dspace_id, ierror)
+      if (ierror.ne.0) call h5_fatal('ierror: h5screate_f','ierror')
+
+! Create the dataset with default properties.
+
+      call h5dcreate_f(file_id, dataset, dtype_id, dspace_id, dset_id, ierror)
+      if (ierror.ne.0) call h5_fatal('ierror: h5dcreate_f','ierror')
+
+! Write dataset
+
+      call h5dwrite_f(dset_id, dtype_id, xvar, idimht, ierror)
+      if (ierror.ne.0) call h5_fatal('ierror: h5dwrite_f','ierror')
+
+! End access to the dataset and release resources used by it. (release dataset id)
+
+      call h5dclose_f(dset_id, ierror)
+      if (ierror.ne.0) call h5_fatal('ierror: h5dclose_f','ierror')
+
+! Terminate access to the data space.  (release dataspace id)
+
+      call h5sclose_f(dspace_id, ierror)
+      if (ierror.ne.0) call h5_fatal('ierror: h5sclose_f','ierror')
+
+      return
+      end subroutine hwrite_integer_scalar
 
 !=======================================================================
 !
@@ -1474,7 +1631,7 @@
 
 ! Create the dataspace (information about array)
 
-!*** to create a true Scalar value (not a 1D array with one element), 
+!*** to create a true Scalar value (not a 1D array with one element),
 !*** you could use "h5screate_f(H5S_SCALAR_F, dspace_id, ierror)   (not verified)
 
       call h5screate_simple_f(irank, idimht, dspace_id, ierror)

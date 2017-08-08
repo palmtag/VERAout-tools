@@ -3,10 +3,14 @@
 !
 !  Program to perform unit tests on Mod_htdftools
 !
-!  Copyright (c) 2014 Core Physics, Inc.
+!  Copyright (c) 2014-2017 Core Physics, Inc.
 !
 !  Distributed under the MIT license.  
 !  See the LICENSE file in the main directory for details.
+!
+!=======================================================================
+!
+!  2017/08/08 - add unit tests for reading/writing scalars
 !
 !=======================================================================
 
@@ -125,6 +129,11 @@
 
 !---------------
 
+!--- call wrapper routine to write double scalar
+
+      dsetname = 'power'
+      call hwrite_double_scalar(file_id, dsetname, power0d)
+
 !--- call wrapper routine to write double 0D array
 
       idims(:)=0     ! clear
@@ -174,6 +183,11 @@
 
 !---------------
 
+!--- call wrapper routine to write integer scalar
+
+      dsetname = 'intscalar'
+      call hwrite_integer_scalar(file_id, dsetname, int0d)
+
 !--- call wrapper routine to write integer 0D array
 
       idims(:)=0     ! clear
@@ -209,7 +223,6 @@
       call hwrite_string(file_id, dsetname, stringin)
 
 !--- write string array
-
 
       namex(1)='this bird'
       namex(2)='flew fast'
@@ -323,6 +336,22 @@
         write (*,220) 'h5info dimension 5', 'FAIL'
       endif
 
+!--- read scalar double
+
+      dsetname = 'power'
+      power0d=0.0d0        ! clear before read
+
+      call hdf5_read_double (file_id, dsetname, power0d)
+      xerr=abs(power0d-3.14d0)
+      if (xerr.lt.tol) then
+        write (*,220) 'read_double', 'PASS'
+      else
+        nfail=nfail+1
+        write (*,*) 'value returned ', power0d
+        write (*,*) 'expecting      ', 3.14d0
+        write (*,*) 'error = ', xerr
+        write (*,220) 'read_double', 'FAIL'
+      endif
 
 !--- read 0D array of double
 
@@ -434,6 +463,24 @@
         nfail=nfail+1
         write (*,220) 'read_double4d', 'FAIL'
       endif
+
+!--- read scalar integer
+
+      dsetname = 'intscalar'
+      int0d=0        ! clear before read
+
+      call hdf5_read_integer (file_id, dsetname, int0d)
+      kerr=int0d-3140
+      if (kerr.eq.0) then
+        write (*,220) 'read_integer_scalar', 'PASS'
+      else
+        nfail=nfail+1
+        write (*,*) 'value returned ', int0d
+        write (*,*) 'expecting      ', 3140
+        write (*,*) 'error = ', kerr
+        write (*,220) 'read_integer', 'FAIL'
+      endif
+
 
 !--- read 0D array of integer
 
