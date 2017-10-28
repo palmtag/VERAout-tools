@@ -3,7 +3,7 @@
    implicit none
 !=======================================================================
 !
-!  Module to include all subroutines for reading HDF5 file
+!  Module to include all wrapper subroutines for reading HDF5 file
 !
 !  Copyright (c) 2014-2017 Core Physics, Inc.
 !
@@ -29,6 +29,7 @@
 !        read_double2d (file_id, dataset, idm1, idm2, xvar)
 !        read_double3d (file_id, dataset, idm1, idm2, idm3, xvar)
 !        read_double4d (file_id, dataset, idm1, idm2, idm3, idm4, xvar)
+!        read_double5d (file_id, dataset, idm1, idm2, idm3, idm4, idm5, xvar)
 !     read_string   (file_id, dataset, stringout)
 !     read_string1d (file_id, dataset, stringout, nsize)
 !
@@ -71,11 +72,13 @@
 !  8/3/2016 - updated with optional argument to hwrite_double to allow user to update
 !             a dataset instead of creating a new one
 !             Need to port this ability to other write subroutines!!!
-!          
+!
 !  8/8/2017 - added hwrite_double_scalar
 !           - added hwrite_integer_scalar
 !            *** still need to write real scalars
 !            *** and should write a generic interface
+!
+!  10/28/2017 - added read_double5d
 !
 !=======================================================================
 
@@ -95,6 +98,7 @@
       private :: read_double2d
       private :: read_double3d
       private :: read_double4d
+      private :: read_double5d
       private :: h5_fatal
 
 !--- define generic interface to read datasets
@@ -104,7 +108,7 @@
       end interface hdf5_read_integer
 
       interface hdf5_read_double
-        module procedure read_double, read_double1do, read_double1d, read_double2d, read_double3d, read_double4d
+        module procedure read_double, read_double1do, read_double1d, read_double2d, read_double3d, read_double4d, read_double5d
       end interface hdf5_read_double
 
 ! *** TO-DO: Create generic interface to write data
@@ -677,8 +681,8 @@
       endif
 
       if (idm1.ne.int(h_dims(1))) then
-        write (*,*) 'input idm1   = ', idm1
-        write (*,*) 'output hdim  = ', h_dims(1)
+        write (*,*) 'input idm1  = ', idm1
+        write (*,*) 'output hdim = ', h_dims(:)
         write (*,*) 'ERROR: array bounds do not match'
         call h5_fatal('read_double1d','array bounds do not match')
         return
@@ -782,8 +786,8 @@
 
       if (idm1.ne.int(h_dims(1)).or. &
           idm2.ne.int(h_dims(2))) then
-        write (*,*) 'input idm1 idm2 = ', idm1, idm2
-        write (*,*) 'output hdim   = ', h_dims(1:2)
+        write (*,*) 'input idm   = ', idm1, idm2
+        write (*,*) 'output hdim = ', h_dims(:)
         write (*,*) 'ERROR: array bounds do not match'
         call h5_fatal('read_double2d','array bounds do not match')
         return
@@ -886,8 +890,8 @@
       if (idm1.ne.int(h_dims(1)) .or. &
           idm2.ne.int(h_dims(2)) .or. &
           idm3.ne.int(h_dims(3))) then
-        write (*,*) 'input idm = ', idm1, idm2, idm3
-        write (*,*) 'output hdim   = ', h_dims(1:3)
+        write (*,*) 'input idm   = ', idm1, idm2, idm3
+        write (*,*) 'output hdim = ', h_dims(:)
         write (*,*) 'ERROR: array bounds do not match'
         call h5_fatal('read_double3d','array bounds do not match')
         return
@@ -995,8 +999,8 @@
           idm2.ne.int(h_dims(2)) .or. &
           idm3.ne.int(h_dims(3)) .or. &
           idm4.ne.int(h_dims(4))) then
-        write (*,*) 'input idm = ', idm1, idm2, idm3, idm4
-        write (*,*) 'output hdim   = ', h_dims(1:4)
+        write (*,*) 'input idm   = ', idm1, idm2, idm3, idm4
+        write (*,*) 'output hdim = ', h_dims(:)
         write (*,*) 'ERROR: array bounds do not match'
         call h5_fatal('read_double4d','array bounds do not match')
         return
@@ -1022,6 +1026,114 @@
 
       return
       end subroutine read_double4d
+
+!=======================================================================
+!
+!  Subroutine to read 5D array of double from HDF file
+!
+!  double array has already been allocated and the dimensions
+!  must match what is on the file exactly
+!  (this is different than 1D read)
+!
+!=======================================================================
+      subroutine read_double5d(file_id, dataset, idm1, idm2, idm3, idm4, idm5, xvar)
+      implicit none
+
+      integer(hid_t),   intent(in) :: file_id
+      character(len=*), intent(in) :: dataset
+      integer,          intent(in) :: idm1, idm2, idm3, idm4, idm5
+      real(8),          intent(out):: xvar(idm1,idm2,idm3,idm4, idm5)
+
+!--- local
+
+      integer(hid_t) :: dset_id
+      integer(hid_t) :: ispace_id
+      integer        :: ierror
+      integer        :: maxndim
+
+      integer, parameter :: max_dimen=5     ! maximum number of dimensions allowed
+
+      integer(hsize_t) :: h_dims(max_dimen)
+      integer(hsize_t) :: h_maxdims(max_dimen)
+
+      ierror=0
+      xvar(:,:,:,:,:)=0.0d0
+
+!--- open a dataset and dataspace
+
+      write (*,'(1x,2a)') 'reading dataset: ', trim(dataset)
+
+      call h5dopen_f(file_id, dataset, dset_id, ierror)
+      if (ierror.lt.0) then
+        write (*,'(3a)')   'error: data set ',trim(dataset), ' could not be opened'
+        write (*,'(a,i8)') 'error code ', ierror
+        return
+      endif
+
+      call h5dget_space_f(dset_id, ispace_id, ierror)              !Assign a dataspace based on the dataset
+      if (ierror.ne.0) then
+        write (*,*) 'error: h5dget_space_f ', ierror
+        call h5_fatal('h5dget_space_f','ierror')
+      endif
+
+! Determine number of discrete subunits for each dimensions
+      h_dims(:)=0
+      h_maxdims(:)=0
+      call h5sget_simple_extent_dims_f(ispace_id, h_dims, h_maxdims, ierror)
+      if (ierror.lt.0) then    ! returns rank in ierror
+        write (*,*) 'error: h5sget_simple_extent_dims_f ', ierror
+        call h5_fatal('h5sget_simple_extent_dims_f','ierror')
+      endif
+      maxndim=ierror
+
+      if (ifdebug) then
+        write (*,110) trim(dataset)
+        write (*,115) 'number of dimensions: ', maxndim
+        write (*,115) 'dimensions    : ', h_dims(1:maxndim)
+        write (*,115) 'dimensions max: ', h_maxdims(1:maxndim)
+      endif
+  110 format (/,' dataset : ', a)
+  115 format (1x,a,20i4)
+
+      if (maxndim.ne.max_dimen) then
+        write (*,*) 'invalid number of dimensions in read_double5d'
+        write (*,*) '  expecting ', max_dimen
+        write (*,*) '  found     ', maxndim
+        call h5_fatal('read_double5d','invalid number of dimensions')
+      endif
+
+      if (idm1.ne.int(h_dims(1)) .or. &
+          idm2.ne.int(h_dims(2)) .or. &
+          idm3.ne.int(h_dims(3)) .or. &
+          idm4.ne.int(h_dims(4)) .or. &
+          idm5.ne.int(h_dims(5))) then
+        write (*,*) 'input idm   = ', idm1, idm2, idm3, idm4, idm5
+        write (*,*) 'output hdim = ', h_dims(:)
+        write (*,*) 'ERROR: array bounds do not match'
+        call h5_fatal('read_double5d','array bounds do not match')
+        return
+      endif
+
+! Read data from dataset
+      call h5dread_f(dset_id, H5T_NATIVE_DOUBLE, xvar, h_dims, ierror)
+      if (ierror.ne.0) then
+        write (*,*) 'error reading data set ',trim(dataset)
+        call h5_fatal('read_double5d','error reading dataset')
+      endif
+
+      call h5sclose_f(ispace_id, ierror)
+      call h5dclose_f(dset_id, ierror)
+
+!!*** too big to print
+!!    if (ifdebug) then
+!!      write (*,'(/,a)') ' 5D Double array:'
+!!      do j=1, idm2
+!!        write (*,'(2x,i4,20f12.4)') j, (xvar(i,j),i=1,idm)
+!!      enddo
+!!    endif
+
+      return
+      end subroutine read_double5d
 !=======================================================================
 !
 !  Subroutine to read character string from HDF5 file
@@ -1542,7 +1654,6 @@
       integer(hid_t) :: dspace_id     ! Dataspace identifier
       integer(hid_t) :: dtype_id      ! data type to be written
 
-      integer  :: i
       integer  :: ierror              ! Error flag
       integer(hsize_t) :: idimht(10)  ! Dataset dimensions - using HDF size
 

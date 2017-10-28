@@ -3,6 +3,9 @@
 !
 !  Program to read a single (double precision) scalar value from HDF file
 !
+!  This utility could be used to read a single dataset value,
+!      or to compare to a reference value as part of a test suite
+!
 !  *** needs to be modifed to read any data type ***
 !
 !  Copyright (c) 2016 Core Physics, Inc.
@@ -21,8 +24,15 @@
 !  Usage:
 !    getscaler [dataset] [file.h5] {reference} {reference tolerance}
 !
-!  Example:
+!  Example: (read dataset)
+!     getscaler /STATE_0001/keff  test2.h5
+!     getscaler /STATE_0002/keff  test2.h5
+!     getscaler /STATE_0002/power cyc1-bol.h5
+!
+!  Example: (compare to reference value)
 !    getscaler /STATE_0001/tinlet tin3.h5 291 0.1
+!    getscaler /STATE_0001/keff   test2.h5 1.000 0.0001
+!
 !
 !-----------------------------------------------------------------------
       use  hdf5

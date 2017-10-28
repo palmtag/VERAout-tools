@@ -1,10 +1,8 @@
    module mod_batch
-   use  hdf5
-   use  mod_hdftools
-   implicit none
 !=======================================================================
 !
 !  Module to store batch edit information
+!  *** still in development
 !
 !  Copyright (c) 2017 Core Physics, Inc.
 !
@@ -23,6 +21,9 @@
 !  ** need to fix HDF reader
 !
 !-----------------------------------------------------------------------
+   use  hdf5
+   use  mod_hdftools
+   implicit none
 
       integer :: nbatch
 

@@ -3,6 +3,8 @@
 !
 !  Program to perform unit tests on Mod_htdftools
 !
+!  Program also serves as an example file to use Mod_hdftools routines
+!
 !  Copyright (c) 2014-2017 Core Physics, Inc.
 !
 !  Distributed under the MIT license.  
@@ -26,8 +28,9 @@
 
       integer     :: num1d
       integer     :: nx, ny, nz, na
-      integer     :: i, j, k, l
-      real(8)     :: xerr
+      integer     :: i1, i2, i3, i4, i5
+      integer     :: i, j
+      real(8)     :: x1,xerr
       real(8)     :: tol=1.0d-8
 
       real(8)     :: power0d, atemp(1)
@@ -35,6 +38,7 @@
       real(8), allocatable :: power2d(:,:)
       real(8), allocatable :: power3d(:,:,:)
       real(8), allocatable :: power4d(:,:,:,:)
+      real(8), allocatable :: power5d(:,:,:,:,:)
 
       integer     :: kerr
       integer     :: ierror              ! Error flag
@@ -70,30 +74,43 @@
       enddo
 
       allocate (power2d(nx,ny))
-      do j=1, ny
-        do i=1, nx
-           power2d(i,j)=i*100.0d0+j+0.1d0
+      do i2=1, ny
+        do i1=1, nx
+           power2d(i1,i2)=i1*100.0d0+i2+0.1d0
         enddo
       enddo
 
       allocate (power3d(nx,ny,nz))
-      do k=1, nz
-        do j=1, ny
-          do i=1, nx
-            power3d(i,j,k)=k*1000.0d0 + i*100.0d0+j+0.1d0
+      do i3=1, nz
+        do i2=1, ny
+          do i1=1, nx
+            power3d(i1,i2,i3)=i3*1.0d3 + i1*100.0d0+i2+0.1d0
           enddo
         enddo
       enddo
 
       allocate (power4d(nx,ny,nz,na))
-      do l=1, na
-      do k=1, nz
-        do j=1, ny
-          do i=1, nx
-            power4d(i,j,k,l)=l*10000.0d0 + k*1000.0d0 + i*100.0d0 + j+0.1d0
+      do i4=1, na
+        do i3=1, nz
+          do i2=1, ny
+            do i1=1, nx
+              power4d(i1,i2,i3,i4)=i4*1.0d4 + i3*1.0d3 + i1*100.0d0 + i2+0.1d0
+            enddo
           enddo
         enddo
       enddo
+
+      allocate (power5d(nx,ny,nz,na,na))
+      do i5=1, na
+        do i4=1, na
+          do i3=1, nz
+            do i2=1, ny
+              do i1=1, nx
+                power5d(i1,i2,i3,i4,i5)=i5+1.0d5 + i4*1.0d4 + i3*1.0d3 + i1*100.0d0 + i2+0.1d0
+              enddo
+            enddo
+          enddo
+        enddo
       enddo
 
       int0d=3140
@@ -180,6 +197,18 @@
 
       dsetname = 'power4d'
       call hwrite_double(file_id, dsetname, idims, power4d)
+
+!--- call wrapper routine to write double 5D array
+
+      idims(:)=0     ! clear
+      idims(1)=nx
+      idims(2)=ny
+      idims(3)=nz
+      idims(4)=na
+      idims(5)=na
+
+      dsetname = 'power5d'
+      call hwrite_double(file_id, dsetname, idims, power5d)
 
 !---------------
 
@@ -286,55 +315,11 @@
         write (*,220) 'h5info number of dimensions', 'FAIL'
       endif
 
-      if (idims(1).eq.nx) then
-        write (*,220) 'h5info dimension 1', 'PASS'
-      else
-        nfail=nfail+1
-        write (*,*) 'h5finfo returned invalid dimension size 1'
-        write (*,*) ' expecting ', nx
-        write (*,*) ' found     ', idims(1)
-        write (*,220) 'h5info dimension 1', 'FAIL'
-      endif
-
-      if (idims(2).eq.ny) then
-        write (*,220) 'h5info dimension 2', 'PASS'
-      else
-        nfail=nfail+1
-        write (*,*) 'h5finfo returned invalid dimension size 2'
-        write (*,*) ' expecting ', ny
-        write (*,*) ' found     ', idims(2)
-        write (*,220) 'h5info dimension 2', 'FAIL'
-      endif
-
-      if (idims(3).eq.nz) then
-        write (*,220) 'h5info dimension 3', 'PASS'
-      else
-        nfail=nfail+1
-        write (*,*) 'h5finfo returned invalid dimension size 3'
-        write (*,*) ' expecting ', nz
-        write (*,*) ' found     ', idims(3)
-        write (*,220) 'h5info dimension 3', 'FAIL'
-      endif
-
-      if (idims(4).eq.na) then
-        write (*,220) 'h5info dimension 4', 'PASS'
-      else
-        nfail=nfail+1
-        write (*,*) 'h5finfo returned invalid dimension size 4'
-        write (*,*) ' expecting ', na
-        write (*,*) ' found     ', idims(4)
-        write (*,220) 'h5info dimension 4', 'FAIL'
-      endif
-
-      if (idims(5).eq.0) then
-        write (*,220) 'h5info dimension 5', 'PASS'
-      else
-        nfail=nfail+1
-        write (*,*) 'h5finfo returned invalid dimension size 5'
-        write (*,*) ' expecting ', na
-        write (*,*) ' found     ', idims(5)
-        write (*,220) 'h5info dimension 5', 'FAIL'
-      endif
+      call checkint(1, nx,   idims(1), nfail)
+      call checkint(2, ny,   idims(2), nfail)
+      call checkint(3, nz,   idims(3), nfail)
+      call checkint(4, na,   idims(4), nfail)
+      call checkint(5, 0,    idims(5), nfail)
 
 !--- read scalar double
 
@@ -387,13 +372,7 @@
         xerr=abs(power1d(i)-dble(i*i))
         if (xerr.gt.tol) nbad=nbad+1  
       enddo
-      if (nbad.eq.0) then
-        write (*,220) 'read_double1d', 'PASS'
-      else
-        write (*,*) 'number of errors ', nbad
-        nfail=nfail+1
-        write (*,220) 'read_double1d', 'FAIL'
-      endif
+      call printstatus('read_double1d', nbad, nfail)
 
 !--- read 2D array of double
 
@@ -408,13 +387,7 @@
           if (xerr.gt.tol) nbad=nbad+1
         enddo
       enddo
-      if (nbad.eq.0) then
-        write (*,220) 'read_double2d', 'PASS'
-      else
-        write (*,*) 'number of errors ', nbad
-        nfail=nfail+1
-        write (*,220) 'read_double2d', 'FAIL'
-      endif
+      call printstatus('read_double2d', nbad, nfail)
 
 !--- read 3D array of double
 
@@ -423,21 +396,15 @@
 
       call hdf5_read_double (file_id, dsetname, nx, ny, nz, power3d)
       nbad=0
-      do k=1, nz
-      do j=1, ny
-        do i=1, nx
-          xerr=abs(power3d(i,j,k)-(k*1000.0d0+i*100.0d0+j+0.1d0))
-          if (xerr.gt.tol) nbad=nbad+1
+      do i3=1, nz
+        do i2=1, ny
+          do i1=1, nx
+            xerr=abs(power3d(i1,i2,i3)-(i3*1000.0d0+i1*100.0d0+i2+0.1d0))
+            if (xerr.gt.tol) nbad=nbad+1
+           enddo
         enddo
       enddo
-      enddo
-      if (nbad.eq.0) then
-        write (*,220) 'read_double3d', 'PASS'
-      else
-        write (*,*) 'number of errors ', nbad
-        nfail=nfail+1
-        write (*,220) 'read_double3d', 'FAIL'
-      endif
+      call printstatus('read_double3d', nbad, nfail)
 
 !--- read 4D array of double
 
@@ -446,23 +413,40 @@
       
       call hdf5_read_double (file_id, dsetname, nx, ny, nz, na, power4d)
       nbad=0
-      do l=1, na
-      do k=1, nz
-      do j=1, ny
-        do i=1, nx
-          xerr=abs(power4d(i,j,k,l)-(l*10000.0d0+k*1000.0d0+i*100.0d0+j+0.1d0))
-          if (xerr.gt.tol) nbad=nbad+1
+      do i4=1, na
+        do i3=1, nz
+          do i2=1, ny
+            do i1=1, nx
+              x1=i4*10000.0d0+i3*1000.0d0+i1*100.0d0+i2+0.1d0
+              xerr=abs(power4d(i1,i2,i3,i4)-x1)
+              if (xerr.gt.tol) nbad=nbad+1
+            enddo
+          enddo
         enddo
       enddo
+      call printstatus('read_double4d', nbad, nfail)
+
+!--- read 5D array of double
+
+      dsetname = 'power5d'
+      power5d=0.0d0
+
+      call hdf5_read_double (file_id, dsetname, nx, ny, nz, na, na, power5d)
+      nbad=0
+      do i5=1, na
+        do i4=1, na
+          do i3=1, nz
+            do i2=1, ny
+              do i1=1, nx
+                x1=i5+1.0d5+i4*1.0d4+i3*1000.0d0+i1*100.0d0+i2+0.1d0
+                xerr=abs(power5d(i1,i2,i3,i4,i5)-x1)
+                if (xerr.gt.tol) nbad=nbad+1
+              enddo
+            enddo
+          enddo
+        enddo
       enddo
-      enddo
-      if (nbad.eq.0) then
-        write (*,220) 'read_double4d', 'PASS'
-      else
-        write (*,*) 'number of errors ', nbad
-        nfail=nfail+1
-        write (*,220) 'read_double4d', 'FAIL'
-      endif
+      call printstatus('read_double5d', nbad, nfail)
 
 !--- read scalar integer
 
@@ -516,13 +500,7 @@
         kerr=int1d(i)-i*i
         if (kerr.ne.0) nbad=nbad+1
       enddo
-      if (nbad.eq.0) then
-        write (*,220) 'read_integer1d', 'PASS'
-      else
-        write (*,*) 'number of errors ', nbad
-        nfail=nfail+1
-        write (*,220) 'read_integer1d', 'FAIL'
-      endif
+      call printstatus('read_integer1d', nbad, nfail)
 
 !--- read 1D array of integer (size known)
 
@@ -535,13 +513,7 @@
         kerr=int1d(i)-i*i
         if (kerr.ne.0) nbad=nbad+1
       enddo
-      if (nbad.eq.0) then
-        write (*,220) 'read_integer1d', 'PASS'
-      else
-        write (*,*) 'number of errors ', nbad
-        nfail=nfail+1
-        write (*,220) 'read_integer1d', 'FAIL'
-      endif
+      call printstatus('read_integer1d', nbad, nfail)
 
 !--- read 2D array of integer
 
@@ -556,13 +528,7 @@
           if (kerr.ne.0) nbad=nbad+1
         enddo
       enddo
-      if (nbad.eq.0) then
-        write (*,220) 'read_integer2d', 'PASS'
-      else
-        write (*,*) 'number of errors ', nbad
-        nfail=nfail+1
-        write (*,220) 'read_integer2d', 'FAIL'
-      endif
+      call printstatus('read_integer2d', nbad, nfail)
 
 !--- read string
 
@@ -652,13 +618,7 @@
           if (xerr.gt.tol) nbad=nbad+1
         enddo
       enddo
-      if (nbad.eq.0) then
-        write (*,220) 'read_double2d', 'PASS'
-      else
-        write (*,*) 'number of errors ', nbad
-        nfail=nfail+1
-        write (*,220) 'read_double2d', 'FAIL'
-      endif
+      call printstatus('read_double2d', nbad, nfail)
 
 !--- close file
 
@@ -698,4 +658,47 @@
 
 
       end
+!=======================================================================
+!  Small subroutine to check two integer values
+!=======================================================================
+      subroutine checkint(id, i1,i2, nfail)
+      implicit none
+      integer, intent(in) :: id      ! dimension number (edit)
+      integer, intent(in) :: i1, i2  ! expected, actual
+      integer             :: nfail   ! return code
+
+      if (i1.eq.i2) then
+        write (*,220) id, 'PASS'
+      else
+        nfail=nfail+1
+        write (*,*) 'h5finfo returned invalid dimension size ', id
+        write (*,*) ' expecting ', i1
+        write (*,*) ' found     ', i2
+        write (*,220) id, 'FAIL'
+      endif
+  220 format(' h5info dimension ', i0, t60,a)
+
+      return
+      end subroutine checkint
+
+!=======================================================================
+!  Small subroutine to print error messages
+!=======================================================================
+      subroutine printstatus(label, nbad, nfail)
+      implicit none
+      character(len=*), intent(in) :: label
+      integer,          intent(in) :: nbad    ! current test
+      integer                      :: nfail   ! running total
+
+      if (nbad.eq.0) then
+        write (*,220) trim(label), 'PASS'
+      else
+        write (*,*) 'number of errors ', nbad
+        nfail=nfail+1
+        write (*,220) trim(label), 'FAIL'
+      endif
+  220 format(1x,a,t60,a)
+
+      return
+      end subroutine printstatus
 
