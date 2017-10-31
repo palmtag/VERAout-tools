@@ -13,12 +13,13 @@
 !
 !=======================================================================
 !
-!  *** Note that the MPACT restart file uses copressed HDF
+!  *** Note that the MPACT restart file uses compressed HDF
 !
 !  2016/03/02 - original file
 !  2016/07/13 - add average isotopic edits (intendend for a pincell)
 !  2016/07/23 - add isotopic edits of first 3 rings
 !  2017/01/19 - add statepoint edits
+!  2017/10/31 - skip empty assembly locations
 !
 !  Use utility "h5dump -H restart.h5" to see format of restart file
 !
@@ -35,7 +36,7 @@
 
       integer  :: itype        ! temp variable
       integer  :: ndim         ! temp variable
-      integer  :: idims(10)     ! temp variable
+      integer  :: idims(10)    ! temp variable
 
       logical  :: ifxst
 
@@ -245,6 +246,15 @@
 
          write (assm_name(10:11),'(i2.2)') ia
          write (assm_name(13:14),'(i2.2)') ja
+
+!--- check if statepoint exists
+
+        call h5lexists_f(file_id, trim(group_name)//'/'//trim(assm_name), ifxst, ierror)
+        if (.not.ifxst) then
+          write (*,'(3a)') ' assembly ', trim(assm_name),' not found'
+          cycle
+        endif
+
 
 !--- read dimensions
 
