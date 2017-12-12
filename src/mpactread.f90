@@ -473,7 +473,7 @@
             call print_3D_pin_map('2D '//dist_label(idis), npin, 1,  nassm, tdist2d)
           endif
           if (if1d) then
-            call print1d(dist_label(idis), npin, kd, nassm, tdist, axial)
+            call print1d(dist_label(idis), npin, kd, nassm, tdist)
           endif
 
           if (if2da) then     ! 2D average assembly edits (already collapsed)

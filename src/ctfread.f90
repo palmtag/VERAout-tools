@@ -505,7 +505,7 @@
 !--- 1D edits
 
         if (if1d) then
-          call print1d(dist_label(idis), npin, kd, nassm, tdist, axial)
+          call print1d(dist_label(idis), npin, kd, nassm, tdist)
         endif
 
         deallocate (tdist)

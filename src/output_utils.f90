@@ -410,14 +410,15 @@
 !  Subroutine to print axial edits
 !
 !=======================================================================
-      subroutine print1d(title, npin, kd, nassm, power, axial)
+      subroutine print1d(title, npin, kd, nassm, power)
+      use mod_coregeom, only : icore, jcore, mapcore, axial
       implicit none
       character(len=*), intent(in) :: title
       integer, intent(in) :: npin, kd, nassm
       real(8), intent(in) :: power(npin,npin,kd,nassm)
-      real(8), intent(in) :: axial(kd)
 
       integer          :: i, j, k, nn
+      integer          :: ia, ja
       integer          :: na
       real(8)          :: z1, z2
       real(8)          :: pp
@@ -432,27 +433,32 @@
 
       if (kd.le.1) return   ! skip 1D edits
 
-!--- calculate axial averages **** this will be wrong if qtr-core and assemblies repeated
+!--- calculate axial averages
 
       axpow(:)=0.0d0
       axmin(:)=1.0d20
       axmax(:)=0.0d0
       numax(:)=0
 
-      do na=1, nassm
-        do k=1, kd       ! loop over axial levels
-          do j=1, npin
-            do i=1, npin
-              pp=power(i,j,k,na)
-              if (pp.gt.0.0d0) then
-                axpow(k)=axpow(k)+pp
-                numax(k)=numax(k)+1
-                axmin(k)=min(pp,axmin(k))  ! don't count zero power locations
-                axmax(k)=max(pp,axmax(k))
-              endif
+      do ja=1, jcore     ! loop over assemblies in full-core
+        do ia=1, icore   ! loop over assemblies in full-core
+          na=mapcore(ia,ja)
+          if (na.eq.0) cycle
+
+          do k=1, kd       ! loop over axial levels
+            do j=1, npin
+              do i=1, npin
+                pp=power(i,j,k,na)
+                if (pp.gt.0.0d0) then
+                  axpow(k)=axpow(k)+pp
+                  numax(k)=numax(k)+1
+                  axmin(k)=min(pp,axmin(k))  ! don't count zero power locations
+                  axmax(k)=max(pp,axmax(k))
+                endif
+              enddo
             enddo
-          enddo
-        enddo    ! k
+          enddo    ! k
+        enddo
       enddo
 
 !  Normalize each axial level
