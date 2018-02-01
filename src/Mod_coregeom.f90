@@ -4,7 +4,7 @@
 !
 !  Module to read and store data from CORE block of HDF file
 !
-!  Copyright (c) 2014-2017 Core Physics, Inc.
+!  Copyright (c) 2014-2018 Core Physics, Inc.
 !
 !  Distributed under the MIT license.
 !  See the LICENSE file in the main directory for details.
@@ -36,14 +36,13 @@
 !   Subroutine to read CORE block from VERAout HDF file
 !
 !=======================================================================
-      subroutine readcore(file_id, ifdebug, ifload)
+      subroutine readcore(file_id, ifdebug)
       use hdf5
       use mod_hdftools
       implicit none
 
       integer(hid_t), intent(in) :: file_id
       logical       , intent(in) :: ifdebug
-      logical       , intent(in) :: ifload
 
 !--- local
 
@@ -232,8 +231,6 @@
       deallocate (temp4d)
 
       call fixload()   ! fix pin loading
-
-      if (ifload) call print_3D_pin_map('pin loading', npin, kd, nassm, pinload)
 
 !--- temp define edit labels
 

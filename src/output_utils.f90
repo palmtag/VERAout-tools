@@ -825,6 +825,8 @@
         write (*,*)
       enddo
 
+      write (*,*) 'WARNING: 2PIN maps do not use loadings if collapsing exposures'
+
       return
       end subroutine print2d_2pin_map
 !=======================================================================

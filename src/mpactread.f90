@@ -2,13 +2,13 @@
    use  hdf5
    use  mod_hdftools
    use  mod_batch
-   use  mod_coregeom, only : readcore, mapcore, icore, jcore, axial, nassm, npin, kd
+   use  mod_coregeom, only : readcore, mapcore, icore, jcore, axial, nassm, npin, kd, pinload
    implicit none
 !=======================================================================
 !
 !  Program to read MPACT HDF output file and print summary
 !
-!  Copyright (c) 2014-2017 Core Physics, Inc.
+!  Copyright (c) 2014-2018 Core Physics, Inc.
 !
 !  Distributed under the MIT license.
 !  See the LICENSE file in the main directory for details.
@@ -30,6 +30,7 @@
 !  2017/05/18 - add 2PIN and 2PIN map for Jim
 !             - add ability to just print edits for a single statepoint
 !             - add axial offset edit
+!  2018/02/01 - added more control over pin loading edits (2d, 3d, 1d, etc.)
 !
 !-----------------------------------------------------------------------
 
@@ -83,6 +84,8 @@
       character(len=20) :: dist_label(maxdist)
       logical           :: dist_print(maxdist)   ! logical to print distribution
 
+! arrays for statepoint summary
+
       integer, parameter :: maxstate=200
       real(8)  :: state_xkeff(maxstate)
       real(8)  :: state_xexpo(maxstate)  ! exposure
@@ -108,7 +111,7 @@
       logical  :: iftime =.false.           ! timing summary
       logical  :: ifbatch=.false.           ! batch edits
 
-!  initialize
+!--- initialize
 
       inputfile=' '
 
@@ -265,7 +268,41 @@
 !  Read CORE group
 !-------------------
 
-      call readcore(file_id, ifdebug, ifload)
+      call readcore(file_id, ifdebug)
+
+!--- print loadings
+
+      if (ifload) then
+        dataset='Core Loading'
+        if (if3d) then
+          call print_3D_pin_map(dataset, npin, kd, nassm, pinload)
+        endif
+        if (if1d) then
+          call print1d(dataset, npin, kd, nassm, pinload, axial)
+        endif
+
+        if (if2d .or. if2da) then
+          allocate (tdist2d(npin, npin, nassm))        ! 2D distributions
+
+          iflag=.false.   ! do not weight with loading
+          call collapse2d(dataset, npin, kd, nassm, axial, pinload, tdist2d, iflag)
+
+          if (if2d) then
+            call print_3D_pin_map('2D '//dataset, npin, 1,  nassm, tdist2d)
+          endif
+          if (if2da) then     ! 2D average assembly edits (already collapsed)
+            call print2d_assm_map(dataset, npin, nassm, tdist2d)
+          endif
+
+          deallocate (tdist2d)
+        endif
+
+        if (if2pin) then
+          call print2d_2pin_map(dataset, npin, nassm, pinload, kd)
+        endif
+
+      endif
+
 
 !--- initialize batch edits
 
@@ -306,9 +343,9 @@
 
         write (*,*)
 
-!--------------------------------------------------------------------------------
-! Read scalars
-!--------------------------------------------------------------------------------
+!---------------------------
+!  Read statepoint scalars
+!---------------------------
 
         xexpo=-1.0d0   ! initialize in case it is missing
         xefpd=-1.0d0
@@ -386,9 +423,9 @@
         write (*,'(a, f10.4,a)') ' exposure =', xefpd,' EFPD'
         write (*,'(a, f12.7)')   ' keff     =', xkeff
 
-!--------------------------------------------------------------------------------
-! Read pin powers
-!--------------------------------------------------------------------------------
+!--------------------------
+!  Read statepoint arrays
+!--------------------------
 
 !--- allocate arrays if first statepoint
 
@@ -480,6 +517,7 @@
             call print2d_assm_map(dist_label(idis), npin, nassm, tdist2d)
           endif
 
+!***** does 2pin use loading to collapse pin exposures?
           if (if2pin) then
             call print2d_2pin_map(dist_label(idis), npin, nassm, tdist, kd)
           endif
@@ -522,14 +560,17 @@
       write (*,110)
       do n=1, nstate
         write (*,120) n, state_xexpo(n), state_xefpd(n), state_xkeff(n), &
-               state_boron(n), state_3pin(n), state_2pin(n), state_3exp(n), state_flow(n), &
-               state_power(n), state_tinlet(n), state_axoff(n)
+               state_boron(n), state_3pin(n), state_2pin(n), state_3exp(n), &
+               state_axoff(n)
+!x             state_flow(n), state_power(n), state_tinlet(n), 
       enddo
   110 format (/,'==================================',&
               /,'       Statepoint Summary', &
               /,'==================================',&
               /,'   N   exposure  exposure  eigenvalue   boron      3PIN      2PIN      3EXP', &
-                '      flow     power    tinlet     A/O(%)')
+                '     A/O(%)')
+!x            /,'   N   exposure  exposure  eigenvalue   boron      3PIN      2PIN      3EXP', &
+!x              '      flow     power    tinlet     A/O(%)')
 
   120 format (i4, f10.4, f10.2, f12.6, f10.2, 7f10.4)
 
