@@ -232,6 +232,8 @@
 
       call fixload()   ! fix pin loading
 
+      call coremass()  ! find total core mass
+
 !--- temp define edit labels
 
   !  xlabel  R P N M L K J H G  F  E  D  C  B  A
@@ -345,5 +347,48 @@
 
       return
       end subroutine fixload
+!=======================================================================
+!
+!  Subroutine to calculate total core mass
+!
+!=======================================================================
+      subroutine coremass
+      implicit none
+
+      integer :: i, j, k
+      integer :: ia, ja, na
+      real(8) :: tot1
+      real(8) :: total
+
+      total=0.0d0
+
+      do ja=1, jcore     ! loop over assemblies in full-core
+        do ia=1, icore   ! loop over assemblies in full-core
+          na=mapcore(ia,ja)
+          if (na.eq.0) cycle
+
+          do k=1, kd
+            tot1=0.0d0
+            do j=1, npin
+              do i=1, npin
+                tot1=tot1+pinload(i,j,k, na)
+              enddo
+            enddo
+            total=total+tot1*axial(k)
+          enddo
+
+        enddo  ! ia
+      enddo    ! ja
+
+      if (total.gt.1000.0d0) then
+        write (*,110) total
+      else
+        write (*,112) total
+      endif
+  110 format (' Total core mass ', f12.3,' kg HM')
+  112 format (' Total core mass ', 1p,e14.5,' kg HM')
+
+      return
+      end subroutine coremass
 !=======================================================================
    end module mod_coregeom
