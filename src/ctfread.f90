@@ -25,6 +25,7 @@
 !  2015/12/09 - Update distributions
 !  2017/04/01 - Update distributions
 !  2017/08/24 - back out recent changes because CTF does not have pin loadings present
+!  2018/03/30 - add option to extract single assembly/single state
 !
 !  There are still some issues that need to be worked out:
 !    * There are some cases that have a very small power in non-fuel regions
@@ -44,12 +45,15 @@
       integer            :: idis
       integer            :: ierror
       integer            :: itype
+      integer            :: klev
       integer            :: ndim            ! number of dimensions in HDF file
       integer            :: idim(10)        ! value of dimensions on HDF file
       integer            :: nstate=0        ! statepoint number
       integer            :: lltcool
       integer            :: lltfu
       integer            :: llpow
+      integer            :: istate=0    ! user selected statepoint edit
+      integer            :: iassm=0     ! user selected assembly   edit
 
       real(8)            :: pmax
       real(8)            :: zsum
@@ -86,13 +90,13 @@
       real(8), allocatable :: pow2d(:,:,:)
       real(8), allocatable :: charea(:,:,:,:)    ! channel areas
       real(8), allocatable :: axial(:)
+      real(8), allocatable :: ztotal(:)
 
       real(8), allocatable :: power(:,:,:,:)
       real(8), allocatable :: tfuel(:,:,:,:)
       real(8), allocatable :: tcool(:,:,:,:)  ! coolant temperatures per pincell
 
       integer, allocatable :: mapcore(:,:)
-
 
 ! command line flags
 
@@ -168,7 +172,7 @@
 
       iargs = command_argument_count()
       if (iargs.lt.1) then
-        write (*,*) 'usage:  ctfread.exe [hdf5_file] {1D/2D/3D/tfuel/exit} {-dN}'
+        write (*,*) 'usage:  ctfread.exe [hdf5_file] {1D/2D/3D/tfuel/exit} {-aN} {-sN} {-dN}'
 
         write (*,*)
         write (*,*) 'list of distributions for -dN option:'
@@ -199,6 +203,10 @@
           ifexit=.true.
         elseif (carg.eq.'debug') then
           ifdebug=.true.
+        elseif (carg(1:2).eq.'-s') then   ! single statepoint output option
+          read (carg(3:),*) istate
+        elseif (carg(1:2).eq.'-a') then   ! single assembly output option
+          read (carg(3:),*) iassm
         elseif (carg(1:2).eq.'-d') then
           read (carg(3:),*) idis
           if (idis.ge.1 .and. idis.le.maxdist) dist_print(idis)=.true.
@@ -216,6 +224,9 @@
         dist_print(lltfu)=.true.     ! turn on fuel temp
         dist_print(llpow)=.true.     ! turn on power
       endif
+
+      if (istate.ne.0) write (*,*) 'single statepoint output selected', istate
+      if (iassm .ne.0) write (*,*) 'single assembly output selected', iassm
 
 
 !--- initialize HDF fortran interface
@@ -300,14 +311,19 @@
       endif
 
       if (ifdebug) then
-        write (*,*) 'debug: axial heights [cm]'
+        allocate (ztotal(kd))   ! edit array
         zsum=0.0d0
-        do i=kd, 1, -1
-           write (*,'(i4,f12.6)') i, axial(i)
+        do i=1, kd
            zsum=zsum+axial(i)
+           ztotal(i)=zsum
+        enddo
+
+        write (*,*) 'debug: axial heights [cm]'
+        do i=kd, 1, -1
+           write (*,'(i4,2f12.6)') i, axial(i), ztotal(i)
         enddo
         write (*,'(a,f10.5)') ' sum of axial heights =', zsum
-
+        deallocate (ztotal)
       endif
 
 !--- read channel flow areas (2D array)
@@ -334,6 +350,8 @@
       if (npin .eq.0) stop 'invalid number of pins in pin data'
       if (idim(2).ne.kd)      stop 'invalid axial planes'
       if (idim(3).ne.idim(4)) stop 'invalid numbering npin by npin'
+
+      if (iassm.gt.nassm) stop 'selected assembly number is higher than the maximum value'
 
       allocate (charea(nchan,nchan,kd,nassm))    ! channel areas
       allocate (temp1(nassm,kd,nchan,nchan))
@@ -382,6 +400,8 @@
       nstate=0
       do
         nstate=nstate+1
+        if (istate.gt.0) nstate=istate    ! overwrite single statepoint
+
         write (state_name,'(a,i4.4,a)') '/STATE_', nstate, '/'
         if (ifdebug) write (0,*) 'debug: state= ', state_name
 
@@ -485,6 +505,12 @@
           call print_3D_pin_map(dist_label(idis),  npin,  kd, nassm, tdist)
         endif
 
+        if (iassm.gt.0) then
+          do klev=kd, 1, -1
+            call print_single_pin_map(dist_label(idis),  npin,  kd, nassm, iassm, klev, tdist)
+          enddo
+        endif
+
 !--- 2D edits
 
         if (if2d) then
@@ -539,6 +565,7 @@
 !   Finish Statepoints
 !--------------------------------------------------------------------------------
 
+        if (istate.ne.0) exit    ! single statepoint option
       enddo     ! end of statepoint loop
   800 continue
 
