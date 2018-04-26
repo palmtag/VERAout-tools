@@ -31,6 +31,7 @@
 !             - add ability to just print edits for a single statepoint
 !             - add axial offset edit
 !  2018/02/01 - added more control over pin loading edits (2d, 3d, 1d, etc.)
+!  2018/04/26 - added csv option to print summary to csv file
 !
 !-----------------------------------------------------------------------
 
@@ -110,6 +111,7 @@
       logical  :: if1d   =.false.           ! turn on 1D edits
       logical  :: iftime =.false.           ! timing summary
       logical  :: ifbatch=.false.           ! batch edits
+      logical  :: ifcsv  =.false.           ! print summary to csv file
 
 !--- initialize
 
@@ -153,6 +155,7 @@
         write (*,*) '  2PIN   print max 2D assembly rod edits'
         write (*,*) '  3D     print 3D pin edits'
         write (*,*) '  -load  print pin loadings'
+        write (*,*) '  -csv   write summary to CSV file'
         write (*,*) '  -time  print timing summary'
         write (*,*) '  -batch print batch edits'
         write (*,*) '  -sM    edits a single statepoint M'
@@ -183,8 +186,10 @@
           if2pin=.true.
         elseif (carg.eq.'1D' .or. carg.eq.'1d') then
           if1d=.true.
-        elseif (carg.eq.'debug') then
+        elseif (carg.eq.'-debug') then
           ifdebug=.true.
+        elseif (carg.eq.'-csv') then
+          ifcsv=.true.
         elseif (carg.eq.'-load') then   ! print loadings
           ifload=.true.
         elseif (carg.eq.'-time') then
@@ -573,6 +578,24 @@
 !x              '      flow     power    tinlet     A/O(%)')
 
   120 format (i4, f10.4, f10.2, f12.6, f10.2, 7f10.4)
+
+!--- print summary to CSV file
+
+      if (ifcsv) then
+        write (*,'(/,a)') ' writing output summary to "output.csv"'
+        open (33,file='output.csv')
+        write (33,'(a)') trim(inputfile)
+        write (33,310)
+        do n=1, nstate
+          write (33,320) n, state_xexpo(n), state_xefpd(n), state_xkeff(n), &
+                 state_boron(n), state_3pin(n), state_2pin(n), state_3exp(n), &
+                 state_axoff(n)
+        enddo
+      endif
+
+  310 format ('Statepoint Summary', &
+            /,'N, exposure, exposure, eigenvalue, boron, 3PIN, 2PIN, 3EXP, A/O(%)')
+  320 format (i4,',', f10.4,',', f10.2,',', f12.6,',', f10.2,7(',',f10.4))
 
 !--- timing summary
 
