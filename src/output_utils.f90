@@ -883,7 +883,7 @@
       kmid=0
       zold=0.0d0
       do k=1, kd
-        if (zmid.gt.zold .and. zmid.lt.zmesh(k)) then
+        if (zmid.ge.zold .and. zmid.lt.zmesh(k)) then    ! fix 2019/02/21
           kmid=k
           chi=(zmid-zmesh(k-1))/axial(k)
         endif
