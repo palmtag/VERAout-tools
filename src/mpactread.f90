@@ -8,7 +8,7 @@
 !
 !  Program to read MPACT HDF output file and print summary
 !
-!  Copyright (c) 2014-2018 Core Physics, Inc.
+!  Copyright (c) 2014-2020 Core Physics, Inc.
 !
 !  Distributed under the MIT license.
 !  See the LICENSE file in the main directory for details.
@@ -32,6 +32,7 @@
 !             - add axial offset edit
 !  2018/02/01 - added more control over pin loading edits (2d, 3d, 1d, etc.)
 !  2018/04/26 - added csv option to print summary to csv file
+!  2020/04/16 - update distribution names
 !
 !-----------------------------------------------------------------------
 
@@ -81,8 +82,8 @@
 
       character(len=80)  :: title           ! Problem title
 
-      integer, parameter :: maxdist=6    ! maximum number of distributions
-      character(len=20) :: dist_label(maxdist)
+      integer, parameter :: maxdist=7    ! maximum number of distributions
+      character(len=30) :: dist_label(maxdist)
       logical           :: dist_print(maxdist)   ! logical to print distribution
 
 ! arrays for statepoint summary
@@ -132,11 +133,12 @@
       state_time(:)=-1.0d0
 
       dist_label(1)='pin_powers'     ! pin power must come first in list
-      dist_label(2)='pin_fueltemps'
-      dist_label(3)='pin_cladtemps'
-      dist_label(4)='pin_modtemps'
-      dist_label(5)='pin_moddens'
+      dist_label(2)='pin_fuel_temp'         ! update 4/2020 VERA4.0
+      dist_label(3)='pin_max_clad_surface_temp'     ! update 4/2020 VERA4.0
+      dist_label(4)='pin_mod_temps'         ! update 4/2020 VERA4.0
+      dist_label(5)='pin_mod_dens'          ! update 4/2020 VERA4.0
       dist_label(6)='pin_exposures'
+      dist_label(7)='pin_steamrate'         ! add    4/2020 VERA4.0
 
       llpow=1       ! save location of power
       lltfu=2       ! save location of fuel temperatures
@@ -562,22 +564,32 @@
 
 !--- print summary
 
-      write (*,110)
-      do n=1, nstate
-        write (*,120) n, state_xexpo(n), state_xefpd(n), state_xkeff(n), &
-               state_boron(n), state_3pin(n), state_2pin(n), state_3exp(n), &
-               state_axoff(n)
-!x             state_flow(n), state_power(n), state_tinlet(n), 
-      enddo
-  110 format (/,'==================================',&
+      write (*,108)
+      if (kd.eq.1) then   ! 2d
+        write (*,112)
+        do n=1, nstate
+          write (*,122) n, state_xexpo(n), state_xefpd(n), state_xkeff(n), &
+                 state_boron(n), state_2pin(n), state_3exp(n)
+        enddo
+      else              ! 3D
+        write (*,110)   ! 3D
+        do n=1, nstate
+          write (*,120) n, state_xexpo(n), state_xefpd(n), state_xkeff(n), &
+                 state_boron(n), state_2pin(n), state_3pin(n), state_3exp(n), &
+                 state_axoff(n)
+!x               state_flow(n), state_power(n), state_tinlet(n), 
+        enddo
+      endif
+  108 format (/,'==================================',&
               /,'       Statepoint Summary', &
-              /,'==================================',&
-              /,'   N   exposure  exposure  eigenvalue   boron      3PIN      2PIN      3EXP', &
+              /,'==================================')
+  110 format (  '   N   exposure  exposure  eigenvalue   boron      2PIN      3PIN      3EXP', &
                 '     A/O(%)')
-!x            /,'   N   exposure  exposure  eigenvalue   boron      3PIN      2PIN      3EXP', &
-!x              '      flow     power    tinlet     A/O(%)')
-
   120 format (i4, f10.4, f10.2, f12.6, f10.2, 7f10.4)
+
+  112 format (  '   N   exposure  exposure  eigenvalue   boron      2PIN      2EXP')
+  122 format (i4, f10.4, f10.2, f12.6, f10.2, 7f10.4)
+
 
 !--- print summary to CSV file
 
@@ -588,13 +600,13 @@
         write (33,310)
         do n=1, nstate
           write (33,320) n, state_xexpo(n), state_xefpd(n), state_xkeff(n), &
-                 state_boron(n), state_3pin(n), state_2pin(n), state_3exp(n), &
+                 state_boron(n), state_2pin(n), state_3pin(n), state_3exp(n), &
                  state_axoff(n)
         enddo
       endif
 
   310 format ('Statepoint Summary', &
-            /,'N, exposure, exposure, eigenvalue, boron, 3PIN, 2PIN, 3EXP, A/O(%)')
+            /,'N, exposure, exposure, eigenvalue, boron, 2PIN, 3PIN, 3EXP, A/O(%)')
   320 format (i4,',', f10.4,',', f10.2,',', f12.6,',', f10.2,7(',',f10.4))
 
 !--- timing summary
