@@ -33,6 +33,7 @@
 !  2018/02/01 - added more control over pin loading edits (2d, 3d, 1d, etc.)
 !  2018/04/26 - added csv option to print summary to csv file
 !  2020/04/16 - update distribution names
+!  2020/04/19 - add fuel temperature edits (-tfu)
 !
 !-----------------------------------------------------------------------
 
@@ -102,6 +103,8 @@
       real(8)  :: state_axoff(maxstate)
       integer  :: state_nout(maxstate)
       real(8)  :: state_time(maxstate)
+      real(8)  :: state_atfu(maxstate)
+      real(8)  :: state_3tfu(maxstate)
 
 ! command line flags
 
@@ -111,6 +114,7 @@
       logical  :: if2pin =.false.           ! turn on 2PIN assembly edits
       logical  :: if1d   =.false.           ! turn on 1D edits
       logical  :: iftime =.false.           ! timing summary
+      logical  :: iftfu  =.false.           ! tfu edits
       logical  :: ifbatch=.false.           ! batch edits
       logical  :: ifcsv  =.false.           ! print summary to csv file
 
@@ -131,6 +135,8 @@
       state_axoff(:)=0.0d0
       state_nout(:)=0
       state_time(:)=-1.0d0
+      state_atfu(:)=0.0d0
+      state_3tfu(:)=0.0d0
 
       dist_label(1)='pin_powers'     ! pin power must come first in list
       dist_label(2)='pin_fuel_temp'         ! update 4/2020 VERA4.0
@@ -159,6 +165,7 @@
         write (*,*) '  -load  print pin loadings'
         write (*,*) '  -csv   write summary to CSV file'
         write (*,*) '  -time  print timing summary'
+        write (*,*) '  -tfu   print fuel temperature edits'
         write (*,*) '  -batch print batch edits'
         write (*,*) '  -sM    edits a single statepoint M'
         write (*,*) '  -dN    distribution N (see below)'
@@ -196,6 +203,8 @@
           ifload=.true.
         elseif (carg.eq.'-time') then
           iftime=.true.
+        elseif (carg.eq.'-tfu') then
+          iftfu =.true.
         elseif (carg.eq.'-batch') then
           ifbatch=.true.
         elseif (carg.eq.'-help' .or. carg.eq.'--help') then  ! add for Ben
@@ -213,6 +222,8 @@
       if (idis.eq.-1) then   ! print all distributions by default
         dist_print(:)=.true.
       endif
+
+      if (iftfu) dist_print(lltfu)=.true.
 
       if (if1d)   write (*,*) '1D edits requested on command line'
       if (if2d)   write (*,*) '2D pin edits requested on command line'
@@ -494,6 +505,10 @@
           if (idis.eq.llexp) then
             state_3exp(nstate)=xtemp
           endif
+          if (idis.eq.lltfu) then
+            state_atfu(nstate)=xave   ! average
+            state_3tfu(nstate)=xtemp  ! peak
+          endif
 
           if (.not.dist_print(idis)) cycle    ! skip full edits if this was power
 
@@ -577,7 +592,7 @@
           write (*,120) n, state_xexpo(n), state_xefpd(n), state_xkeff(n), &
                  state_boron(n), state_2pin(n), state_3pin(n), state_3exp(n), &
                  state_axoff(n)
-!x               state_flow(n), state_power(n), state_tinlet(n), 
+!x               state_flow(n), state_power(n), state_tinlet(n),
         enddo
       endif
   108 format (/,'==================================',&
@@ -590,6 +605,17 @@
   112 format (  '   N   exposure  exposure  eigenvalue   boron      2PIN      2EXP')
   122 format (i4, f10.4, f10.2, f12.6, f10.2, 7f10.4)
 
+!--- fuel temperature edits
+
+      if (iftfu) then
+        write (*,220)
+        do n=1, nstate
+          write (*,222) n, state_xexpo(n), state_xefpd(n), state_atfu(n), state_3tfu(n)
+        enddo
+      endif
+  220 format (/,'Fuel Temperature Edits (C)', &
+              /,'   N   exposure  exposure    ave-tfu     max-tfu')
+  222 format (i4, f10.4, f10.2, 2f12.4)
 
 !--- print summary to CSV file
 
