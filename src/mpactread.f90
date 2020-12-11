@@ -217,7 +217,7 @@
         elseif (carg(1:2).eq.'-d') then
           read (carg(3:),*,iostat=ierror) idis
           if (idis.ge.1 .and. idis.le.maxdist) dist_print(idis)=.true.
-          if (idis.ne.0) stop 'error reading distribution number on command line'
+          if (ierror.ne.0) stop 'error reading distribution number on command line'
         else
           inputfile=carg
         endif
