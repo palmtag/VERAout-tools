@@ -694,7 +694,10 @@
         enddo
         if (nn.gt.0) passm(na)=passm(na)/dble(nn)
         if (nnsave.eq.0) nnsave=nn    ! save first time
-        if (nn.ne.nnsave) ifbw=.true.
+        if (nn.ne.nnsave) then
+          ifbw=.true.
+!         write (0,*) 'debug: assembly ', na, nn, nnsave
+        endif
       enddo
 
 !--- calculate average - use mapcore in case this is qtr-core
@@ -726,7 +729,7 @@
       endif
       write (*,130) 'maximum', pmax
       write (*,130) 'minimum', pmin
-  125 format (4x,'number of assemblies in full-core', i0)
+  125 format (4x,'number of assemblies in full-core ', i0)
   130 format (4x,a,' assembly power  ', f8.4)
 
       write (*,*)
