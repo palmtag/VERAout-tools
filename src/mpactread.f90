@@ -83,7 +83,7 @@
 
       character(len=80)  :: title           ! Problem title
 
-      integer, parameter :: maxdist=7    ! maximum number of distributions
+      integer, parameter :: maxdist=10   ! maximum number of distributions
       character(len=30) :: dist_label(maxdist)
       logical           :: dist_print(maxdist)   ! logical to print distribution
 
@@ -145,6 +145,9 @@
       dist_label(5)='pin_mod_dens'          ! update 4/2020 VERA4.0
       dist_label(6)='pin_exposures'
       dist_label(7)='pin_steamrate'         ! add    4/2020 VERA4.0
+      dist_label(8)='pin_cool_den'          ! add 12/10/2020 BWR VERA4.2
+      dist_label(9)='pin_cool_temp'         ! add 12/10/2020 BWR VERA4.2
+      dist_label(10)='pin_cool_void'        ! add 12/10/2020 BWR VERA4.2
 
       llpow=1       ! save location of power
       lltfu=2       ! save location of fuel temperatures
