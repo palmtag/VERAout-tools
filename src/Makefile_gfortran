@@ -44,6 +44,9 @@ veradiff_testing.exe: Mod_hdftools.o veradiff_testing.o
 getscaler.exe: Mod_hdftools.o getscaler.o
 	$(FC) $(FFLAGS) $^ $(HDFOPT) -o $@
 
+test: hunittest.exe
+	./hunittest.exe
+
 .f90.o:
 	$(FC) $(FFLAGS) -c $*.f90
 
