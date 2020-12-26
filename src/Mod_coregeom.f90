@@ -4,7 +4,7 @@
 !
 !  Module to read and store data from CORE block of HDF file
 !
-!  Copyright (c) 2014-2018 Core Physics, Inc.
+!  Copyright (c) 2014-2020 Core Physics, Inc.
 !
 !  Distributed under the MIT license.
 !  See the LICENSE file in the main directory for details.
@@ -17,9 +17,11 @@
       integer  :: kd
       integer  :: npin
 
-      real(8)  :: rated_power               ! rated flow
-      real(8)  :: rated_flow                ! rated power
-      real(8)  :: apitch                    ! assembly pitch
+      real(8)  :: rated_power               ! rated flow (kg/s)
+      real(8)  :: rated_flow                ! rated power (MW)
+      real(8)  :: apitch                    ! assembly pitch (cm)
+      real(8)  :: coremass                  ! core_initial_mass (kg HM)
+      real(8)  :: lhgr                      ! nominal_linear_heat_rate (W/cm)
 
       integer, allocatable :: mapcore(:,:)  ! core assembly map
 
@@ -55,6 +57,8 @@
 
       logical :: ifxst
 
+      real(8) :: rf2             ! flow in english units
+
       character(len=80)  :: dataset         ! HDF dataset name
       character(len=12)  :: group_name
 
@@ -70,6 +74,8 @@
       apitch=21.5d0       ! set default value
       rated_power=0.0d0   ! set default value
       rated_flow =0.0d0   ! set default value
+      coremass   =0.0d0   ! set default value
+      lhgr       =0.0d0   ! set default value
 
       idim(:)=0
 
@@ -101,6 +107,16 @@
       dataset=trim(group_name)//'core_sym'
       call hdf5_read_integer(file_id, dataset, isym)
 
+!--- mass
+
+      dataset=trim(group_name)//'core_initial_mass'
+      call h5lexists_f(file_id, dataset, ifxst, ierror)
+      if (ifxst) then
+        call hdf5_read_double(file_id, dataset, coremass)
+      else
+        write (*,*) '**** core_initial_mass is missing from file ****'
+      endif
+
 !--- rated power and flow
 
       dataset=trim(group_name)//'rated_power'
@@ -119,10 +135,23 @@
         write (*,*) '**** rated flow  is missing from file ****'
       endif
 
+      dataset=trim(group_name)//'nominal_linear_heat_rate'
+      call h5lexists_f(file_id, dataset, ifxst, ierror)
+      if (ifxst) then
+        call hdf5_read_double(file_id, dataset, lhgr)
+      else
+        write (*,*) '**** nominal_linear_heat_rate is missing from file ****'
+      endif
+
+      rf2=rated_flow*7936.641438d-6   ! convert to lbm/hr
+
       write (*,*)
       write (*,'(a,i2)') ' core symmetry  isym  = ', isym
+      write (*,30)       'core mass      ', coremass,   ' kg HM'
       write (*,30)       'rated power    ', rated_power,' MW'
-      write (*,30)       'rated flow     ', rated_flow
+      write (*,30)       'rated flow     ', rated_flow, ' kg/s'
+      write (*,30)       '               ', rf2,        ' Mlb/hr'
+      write (*,30)       'nominal LHGR   ', lhgr,       ' W/cm'
       write (*,30)       'assembly pitch ', apitch,' cm'
   30  format (1x,a,f12.4,a)
 
@@ -230,9 +259,9 @@
 
       deallocate (temp4d)
 
-      call fixload()   ! fix pin loading
+      call fixload()       ! fix pin loading
 
-      call coremass()  ! find total core mass
+      call coremass_pinsum()  ! find total core mass from pin loadings
 
 !--- temp define edit labels
 
@@ -242,7 +271,7 @@
       allocate (xlabel(icore))
       allocate (ylabel(jcore))
 
-!**** still having issues with reading strings
+!**** still having issues with reading strings - use default values instead
 
 !     dataset=trim(group_name)//'xlabel'
 !     call h5info(file_id, dataset, itype, ndim, idim)
@@ -349,15 +378,16 @@
       end subroutine fixload
 !=======================================================================
 !
-!  Subroutine to calculate total core mass
+!  Subroutine to calculate total core mass from pin loading
+!   ** no longer needed because total mass is now written to HDF file
 !
 !=======================================================================
-      subroutine coremass
+      subroutine coremass_pinsum
       implicit none
 
       integer :: i, j, k
       integer :: ia, ja, na
-      real(8) :: tot1
+      real(8) :: totk    ! total in plane
       real(8) :: total
 
       total=0.0d0
@@ -368,13 +398,13 @@
           if (na.eq.0) cycle
 
           do k=1, kd
-            tot1=0.0d0
+            totk=0.0d0
             do j=1, npin
               do i=1, npin
-                tot1=tot1+pinload(i,j,k, na)
+                totk=totk+pinload(i,j,k, na)
               enddo
             enddo
-            total=total+tot1*axial(k)
+            total=total+totk*axial(k)
           enddo
 
         enddo  ! ia
@@ -389,6 +419,6 @@
   112 format (' Total core mass ', 1p,e14.5,' kg HM')
 
       return
-      end subroutine coremass
+      end subroutine coremass_pinsum
 !=======================================================================
    end module mod_coregeom
