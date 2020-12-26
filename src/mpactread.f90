@@ -69,12 +69,7 @@
       real(8)  :: xtemp2                    ! temp value
       real(8)  :: xave                      ! temp value
       real(8)  :: xkeff                     ! eigenvalue
-      real(8)  :: xexpo                     ! exposure
-      real(8)  :: xefpd                     ! exposure EFPD
-      real(8)  :: xflow                     !
-      real(8)  :: xpow                      !
-      real(8)  :: boron                     !
-      real(8)  :: outlet_temp               ! outlet temperature
+      real(8)  :: pressure                  ! pressure (MPa)
 
       real(8), allocatable :: temp4d(:,:,:,:)
       real(8), allocatable :: power(:,:,:,:)  ! 3d distribution
@@ -115,6 +110,7 @@
       logical  :: if1d   =.false.           ! turn on 1D edits
       logical  :: iftime =.false.           ! timing summary
       logical  :: iftfu  =.false.           ! tfu edits
+      logical  :: ifbwr  =.false.           ! bwr edits (t/h edits)
       logical  :: ifbatch=.false.           ! batch edits
       logical  :: ifcsv  =.false.           ! print summary to csv file
 
@@ -123,11 +119,11 @@
       inputfile=' '
 
       state_xkeff(:)=0.0d0
-      state_xexpo(:)=0.0d0
-      state_xefpd(:)=0.0d0
-      state_boron(:)=0.0d0
-      state_flow (:)=0.0d0
-      state_power(:)=0.0d0
+      state_xexpo(:)=-100.0d0
+      state_xefpd(:)=-100.0d0
+      state_boron(:)=-1.0d0
+      state_flow (:)=-1.0d0
+      state_power(:)=-1.0d0
       state_tinlet(:)=-1.0d0
       state_3exp(:)=0.0d0
       state_3pin(:)=0.0d0
@@ -169,6 +165,7 @@
         write (*,*) '  -csv   write summary to CSV file'
         write (*,*) '  -time  print timing summary'
         write (*,*) '  -tfu   print fuel temperature edits'
+        write (*,*) '  -bwr   print BWR T/H edits'
         write (*,*) '  -batch print batch edits'
         write (*,*) '  -sM    edits a single statepoint M'
         write (*,*) '  -dN    distribution N (see below)'
@@ -208,6 +205,8 @@
           iftime=.true.
         elseif (carg.eq.'-tfu') then
           iftfu =.true.
+        elseif (carg.eq.'-bwr') then
+          ifbwr =.true.
         elseif (carg.eq.'-batch') then
           ifbatch=.true.
         elseif (carg.eq.'-help' .or. carg.eq.'--help') then  ! add for Ben
@@ -264,7 +263,6 @@
 !---------------------------
 
       xkeff=-100.0d0
-      xexpo=-100.0d0
       iver=-100
 
       idim(:)=0
@@ -369,18 +367,13 @@
 !  Read statepoint scalars
 !---------------------------
 
-        xexpo=-1.0d0   ! initialize in case it is missing
-        xefpd=-1.0d0
         xkeff=-1.0d0
-        boron=-1.0d0
-        xflow=-1.0d0
-        xpow =-1.0d0
 
         dataset=trim(group_name)//'exposure'
-        call hdf5_read_double(file_id, dataset, xexpo)
+        call hdf5_read_double(file_id, dataset, state_xexpo(nstate))
 
         dataset=trim(group_name)//'exposure_efpd'
-        call hdf5_read_double(file_id, dataset, xefpd)
+        call hdf5_read_double(file_id, dataset, state_xefpd(nstate))
 
         dataset=trim(group_name)//'keff'
         call hdf5_read_double(file_id, dataset, xkeff)
@@ -388,25 +381,20 @@
         dataset=trim(group_name)//'boron'
         call h5lexists_f(file_id, dataset, ifxst, ierror)
         if (ifxst) then
-          call hdf5_read_double(file_id, dataset, boron)
+          call hdf5_read_double(file_id, dataset, state_boron(nstate))
         endif
 
         dataset=trim(group_name)//'flow'
         call h5lexists_f(file_id, dataset, ifxst, ierror)
         if (ifxst) then
-          call hdf5_read_double(file_id, dataset, xflow)
+          call hdf5_read_double(file_id, dataset, state_flow(nstate))
+          if (ifbwr) write (*,*) 'flow = ', state_flow(nstate)
         endif
 
         dataset=trim(group_name)//'power'
         call h5lexists_f(file_id, dataset, ifxst, ierror)
         if (ifxst) then
-          call hdf5_read_double(file_id, dataset, xpow)
-        endif
-
-        dataset=trim(group_name)//'tinlet'
-        call h5lexists_f(file_id, dataset, ifxst, ierror)
-        if (ifxst) then
-          call hdf5_read_double(file_id, dataset, state_tinlet(nstate))
+          call hdf5_read_double(file_id, dataset, state_power(nstate))
         endif
 
         dataset=trim(group_name)//'outer_timer'
@@ -421,11 +409,51 @@
           call hdf5_read_integer(file_id, dataset, state_nout(nstate))
         endif
 
-        dataset=trim(group_name)//'outlet_temp'
+        dataset=trim(group_name)//'tinlet'
         call h5lexists_f(file_id, dataset, ifxst, ierror)
         if (ifxst) then
-          call hdf5_read_double(file_id, dataset, outlet_temp)
-          write (*,*) 'outlet_temp = ', outlet_temp
+          call hdf5_read_double(file_id, dataset, state_tinlet(nstate))
+          if (ifbwr) write (*,65) 'tinlet = ', state_tinlet(nstate),' C'
+          if (ifbwr) write (*,65) 'tinlet = ', state_tinlet(nstate)*1.8d0+32.0d0,' F'
+        endif
+    65  format (1x,a,f12.4,a)
+
+        dataset=trim(group_name)//'core_inlet_temp'       ! temp edit
+        call h5lexists_f(file_id, dataset, ifxst, ierror)
+        if (ifxst) then
+          call hdf5_read_double(file_id, dataset, xtemp)
+          if (ifbwr) write (*,65) 'core_inlet_temp  = ', xtemp,' C'
+        endif
+
+        dataset=trim(group_name)//'core_outlet_temp'
+        call h5lexists_f(file_id, dataset, ifxst, ierror)
+        if (ifxst) then
+          call hdf5_read_double(file_id, dataset, xtemp)
+          if (ifbwr) write (*,65) 'core_outlet_temp = ', xtemp,' C'
+        endif
+
+        dataset=trim(group_name)//'core_inlet_density'       ! temp edit
+        call h5lexists_f(file_id, dataset, ifxst, ierror)
+        if (ifxst) then
+          call hdf5_read_double(file_id, dataset, xtemp)
+          if (ifbwr) write (*,*) 'core_inlet_density  = ', xtemp*0.001d0,' g/cc'
+        endif
+
+        dataset=trim(group_name)//'core_outlet_density'       ! temp edit
+        call h5lexists_f(file_id, dataset, ifxst, ierror)
+        if (ifxst) then
+          call hdf5_read_double(file_id, dataset, xtemp)
+          if (ifbwr) write (*,*) 'core_outlet_density = ', xtemp*0.001d0,' g/cc'
+        endif
+
+        dataset=trim(group_name)//'pressure'
+        call h5lexists_f(file_id, dataset, ifxst, ierror)
+        if (ifxst) then
+          call hdf5_read_double(file_id, dataset, pressure)
+          if (ifbwr) then
+            write (*,*) 'pressure = ', pressure,' MPa'
+            write (*,*) 'pressure = ', pressure*145.03773800722d0,' psi'
+          endif
         endif
 
         if (ifdebug) write (*,*) 'debug: keff = ', xkeff
@@ -435,14 +463,9 @@
         if (nstate.gt.maxstate) stop 'maxstate exceeded - increase and recompile'
 
         state_xkeff(nstate)=xkeff
-        state_xexpo(nstate)=xexpo
-        state_xefpd(nstate)=xefpd
-        state_boron(nstate)=boron
-        state_flow (nstate)=xflow
-        state_power(nstate)=xpow
 
-        write (*,'(a, f10.4,a)') ' exposure =', xexpo,' GWD/MT'
-        write (*,'(a, f10.4,a)') ' exposure =', xefpd,' EFPD'
+        write (*,'(a, f10.4,a)') ' exposure =', state_xexpo(nstate),' GWD/MT'
+        write (*,'(a, f10.4,a)') ' exposure =', state_xefpd(nstate),' EFPD'
         write (*,'(a, f12.7)')   ' keff     =', xkeff
 
 !--------------------------
@@ -587,15 +610,17 @@
       if (kd.eq.1) then   ! 2d
         write (*,112)
         do n=1, nstate
-          write (*,122) n, state_xexpo(n), state_xefpd(n), state_xkeff(n), &
-                 state_boron(n), state_2pin(n), state_3exp(n)
+          write (*,122) n, &
+                 state_xexpo(n), state_xefpd(n), state_xkeff(n), &
+                 state_boron(n), state_2pin(n),  state_3exp(n)
         enddo
       else              ! 3D
         write (*,110)   ! 3D
         do n=1, nstate
-          write (*,120) n, state_xexpo(n), state_xefpd(n), state_xkeff(n), &
-                 state_boron(n), state_2pin(n), state_3pin(n), state_3exp(n), &
-                 state_axoff(n)
+          write (*,120) n, &
+                 state_xexpo(n), state_xefpd(n), state_xkeff(n), &
+                 state_boron(n), state_2pin(n),  state_3pin(n),  &
+                 state_3exp(n),  state_axoff(n)
 !x               state_flow(n), state_power(n), state_tinlet(n),
         enddo
       endif
@@ -608,6 +633,20 @@
 
   112 format (  '   N   exposure  exposure  eigenvalue   boron      2PIN      2EXP')
   122 format (i4, f10.4, f10.2, f12.6, f10.2, 7f10.4)
+
+  114 format (/,'   N   exposure  eigenvalue   power     flow     tinletC')
+  124 format (i4, f10.4, f12.6,              7f10.4)
+
+!--- BWR T/H edits
+
+      if (ifbwr) then
+        write (*,114)
+        do n=1, nstate
+          write (*,124) n, &
+                 state_xexpo(n), state_xkeff(n), &
+                 state_power(n), state_flow(n), state_tinlet(n)
+        enddo
+      endif
 
 !--- fuel temperature edits
 
