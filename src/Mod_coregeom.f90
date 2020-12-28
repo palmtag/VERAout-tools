@@ -146,7 +146,13 @@
       rf2=rated_flow*7936.641438d-6   ! convert to lbm/hr
 
       write (*,*)
-      write (*,'(a,i2)') ' core symmetry  isym  = ', isym
+      if (isym.eq.1) then
+        write (*,'(a)') ' core symmetry  isym 1 (full)'
+      elseif (isym.eq.4) then
+        write (*,'(a)') ' core symmetry  isym 4 (qtr)'
+      else
+        write (*,'(a,i2,a)') ' core symmetry  isym  = ', isym,' (unknown)'
+      endif
       write (*,30)       'core mass      ', coremass,   ' kg HM'
       write (*,30)       'rated power    ', rated_power,' MW'
       write (*,30)       'rated flow     ', rated_flow, ' kg/s'

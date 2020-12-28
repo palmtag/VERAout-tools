@@ -446,6 +446,13 @@
           if (ifbwr) write (*,*) 'core_outlet_density = ', xtemp*0.001d0,' g/cc'
         endif
 
+        dataset=trim(group_name)//'bypass'                    ! temp edit
+        call h5lexists_f(file_id, dataset, ifxst, ierror)
+        if (ifxst) then
+          call hdf5_read_double(file_id, dataset, xtemp)
+          if (ifbwr) write (*,*) 'bypass = ', xtemp
+        endif
+
         dataset=trim(group_name)//'pressure'
         call h5lexists_f(file_id, dataset, ifxst, ierror)
         if (ifxst) then
