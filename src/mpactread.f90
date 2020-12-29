@@ -34,6 +34,7 @@
 !  2018/04/26 - added csv option to print summary to csv file
 !  2020/04/16 - update distribution names
 !  2020/04/19 - add fuel temperature edits (-tfu)
+!  2020/12/28 - add BWR T/H edits (-bwr)
 !
 !-----------------------------------------------------------------------
 
@@ -76,30 +77,30 @@
       real(8), allocatable :: tdist(:,:,:,:)  ! 3d distribution
       real(8), allocatable :: tdist2d(:,:,:)  ! 2d collapsed distribution
 
-      character(len=80)  :: title           ! Problem title
+      character(len=80)  :: title              ! Problem title
 
-      integer, parameter :: maxdist=10   ! maximum number of distributions
-      character(len=30) :: dist_label(maxdist)
-      logical           :: dist_print(maxdist)   ! logical to print distribution
+      integer, parameter :: maxdist=10         ! maximum number of distributions
+      character(len=30) :: dist_label(maxdist) ! distribution labels
+      logical           :: dist_print(maxdist) ! logical to print distribution
 
 ! arrays for statepoint summary
 
-      integer, parameter :: maxstate=200
-      real(8)  :: state_xkeff(maxstate)
-      real(8)  :: state_xexpo(maxstate)  ! exposure
-      real(8)  :: state_xefpd(maxstate)
-      real(8)  :: state_boron(maxstate)
-      real(8)  :: state_flow (maxstate)
-      real(8)  :: state_power(maxstate)
-      real(8)  :: state_tinlet(maxstate)
-      real(8)  :: state_3exp(maxstate)
-      real(8)  :: state_3pin(maxstate)
-      real(8)  :: state_2pin(maxstate)
-      real(8)  :: state_axoff(maxstate)
-      integer  :: state_nout(maxstate)
-      real(8)  :: state_time(maxstate)
-      real(8)  :: state_atfu(maxstate)
-      real(8)  :: state_3tfu(maxstate)
+      integer :: maxstate
+      real(8), allocatable  :: state_xkeff(:)
+      real(8), allocatable  :: state_expo(:)  ! exposure
+      real(8), allocatable  :: state_efpd(:)  ! exposure EFPD
+      real(8), allocatable  :: state_boron(:)
+      real(8), allocatable  :: state_flow (:)
+      real(8), allocatable  :: state_power(:)
+      real(8), allocatable  :: state_tinlet(:)
+      real(8), allocatable  :: state_3exp(:)
+      real(8), allocatable  :: state_3pin(:)
+      real(8), allocatable  :: state_2pin(:)
+      real(8), allocatable  :: state_axoff(:)
+      integer, allocatable  :: state_nout(:)
+      real(8), allocatable  :: state_time(:)
+      real(8), allocatable  :: state_atfu(:)
+      real(8), allocatable  :: state_3tfu(:)
 
 ! command line flags
 
@@ -108,6 +109,7 @@
       logical  :: if2da  =.false.           ! turn on 2D assembly edits
       logical  :: if2pin =.false.           ! turn on 2PIN assembly edits
       logical  :: if1d   =.false.           ! turn on 1D edits
+      logical  :: ifexit =.false.           ! turn on exit maps
       logical  :: iftime =.false.           ! timing summary
       logical  :: iftfu  =.false.           ! tfu edits
       logical  :: ifbwr  =.false.           ! bwr edits (t/h edits)
@@ -117,22 +119,6 @@
 !--- initialize
 
       inputfile=' '
-
-      state_xkeff(:)=0.0d0
-      state_xexpo(:)=-100.0d0
-      state_xefpd(:)=-100.0d0
-      state_boron(:)=-1.0d0
-      state_flow (:)=-1.0d0
-      state_power(:)=-1.0d0
-      state_tinlet(:)=-1.0d0
-      state_3exp(:)=0.0d0
-      state_3pin(:)=0.0d0
-      state_2pin(:)=0.0d0
-      state_axoff(:)=0.0d0
-      state_nout(:)=0
-      state_time(:)=-1.0d0
-      state_atfu(:)=0.0d0
-      state_3tfu(:)=0.0d0
 
       dist_label(1)='pin_powers'     ! pin power must come first in list
       dist_label(2)='pin_fuel_temp'         ! update 4/2020 VERA4.0
@@ -155,12 +141,14 @@
 
       iargs = command_argument_count()
       if (iargs.lt.1) then
-        write (*,*) 'usage:  mpactread.exe [hdf5_file] {1D/2D/2DA/2PIN/3D} {-load} {-time} {-batch} {-dN} {-sN}'
+        write (*,*) 'usage:  mpactread.exe [hdf5_file] {options}'
+        write (*,*) 'options:'
         write (*,*) '  1D     print 1D edits'
         write (*,*) '  2D     print 2D pin edits'
         write (*,*) '  2DA    print 2D assembly average edits'
         write (*,*) '  2PIN   print max 2D assembly rod edits'
         write (*,*) '  3D     print 3D pin edits'
+        write (*,*) '  -exit  print exit maps for top plane'
         write (*,*) '  -load  print pin loadings'
         write (*,*) '  -csv   write summary to CSV file'
         write (*,*) '  -time  print timing summary'
@@ -195,6 +183,8 @@
           if2pin=.true.
         elseif (carg.eq.'1D' .or. carg.eq.'1d') then
           if1d=.true.
+        elseif (carg.eq.'-exit') then
+          ifexit=.true.
         elseif (carg.eq.'-debug') then
           ifdebug=.true.
         elseif (carg.eq.'-csv') then
@@ -233,6 +223,7 @@
       if (if2da)  write (*,*) '2DA assembly edits requested on command line'
       if (if2pin) write (*,*) '2PIN edits requested on command line'
       if (if3d)   write (*,*) '3D pin edits requested on command line'
+      if (ifexit) write (*,*) 'exit maps requested on command line'
       if (istate.ne.0) write (*,*) 'single statepoint output selected'
 
       if (inputfile.eq.' ') then
@@ -249,13 +240,13 @@
       inquire(file=inputfile, exist=ifxst)
       if (.not.ifxst) then
         write (*,'(3a)') 'error: input file ',trim(inputfile),' does not exist'
-        stop
+        stop 'input file does not exist'
       endif
       call h5fopen_f (inputfile, H5F_ACC_RDONLY_F, file_id, ierror)   ! read only
       if (ierror.lt.0) then
         write (*,'(3a)') 'error: H5 input file ',trim(inputfile), &
                    ' could not be opened'
-        stop
+        stop 'H5 input file could not be opened'
       endif
 
 !---------------------------
@@ -323,7 +314,6 @@
 
       endif
 
-
 !--- initialize batch edits
 
       if (ifbatch) then
@@ -334,13 +324,66 @@
 !  Read STATE groups
 !---------------------
 
+!--- count number of statepoints
+
+      if (istate.eq.0) then
+        nstate=0
+        do
+          nstate=nstate+1
+          write (group_name,'(a,i4.4,a)') '/STATE_', nstate, '/'
+          if (ifdebug) write (*,*) 'debug: checking state= ', group_name
+
+          call h5lexists_f(file_id, group_name, ifxst, ierror)
+          if (.not.ifxst) then
+            if (ifdebug) write (*,*) 'dataset not found - exiting'
+            nstate=nstate-1
+            exit
+          endif
+        enddo
+      else
+        nstate=1
+      endif
+
+      maxstate=nstate   ! actual number of statepoints to read
+
+      allocate (state_xkeff(maxstate))
+      allocate (state_expo(maxstate))  ! exposure
+      allocate (state_efpd(maxstate))  ! exposure EFPD
+      allocate (state_boron(maxstate))
+      allocate (state_flow (maxstate))
+      allocate (state_power(maxstate))
+      allocate (state_tinlet(maxstate))
+      allocate (state_3exp(maxstate))
+      allocate (state_3pin(maxstate))
+      allocate (state_2pin(maxstate))
+      allocate (state_axoff(maxstate))
+      allocate (state_nout(maxstate))
+      allocate (state_time(maxstate))
+      allocate (state_atfu(maxstate))
+      allocate (state_3tfu(maxstate))
+
+      state_xkeff(:)=0.0d0
+      state_expo(:)=-100.0d0
+      state_efpd(:)=-100.0d0
+      state_boron(:)=-1.0d0
+      state_flow (:)=-1.0d0
+      state_power(:)=-1.0d0
+      state_tinlet(:)=-1.0d0
+      state_3exp(:)=0.0d0
+      state_3pin(:)=0.0d0
+      state_2pin(:)=0.0d0
+      state_axoff(:)=0.0d0
+      state_nout(:)=0
+      state_time(:)=-1.0d0
+      state_atfu(:)=0.0d0
+      state_3tfu(:)=0.0d0
+
+
 ! 40 format (/,'--------------------------',&
 !            /,'  Reading statepoint ', i0, &
 !            /,'--------------------------')
 
-      nstate=0
-      do
-        nstate=nstate+1
+      do nstate=1, maxstate
 
         if (istate.ne.0) then
           write (group_name,'(a,i4.4,a)') '/STATE_', istate, '/'
@@ -350,13 +393,12 @@
 
         if (ifdebug) write (*,*) 'debug: state= ', group_name
 
-!--- check if statepoint exists
+!--- check if statepoint exists  (only necessary for istate case)
 
         call h5lexists_f(file_id, group_name, ifxst, ierror)
         if (.not.ifxst) then
-          if (ifdebug) write (*,*) 'dataset not found - exiting'
-          nstate=nstate-1
-          goto 800
+          write (0,*)  'statepoint does not exist'
+          exit
         endif
 
 !!      write (*,40) nstate   ! statepoint is already printed in reading dataset edits
@@ -370,10 +412,10 @@
         xkeff=-1.0d0
 
         dataset=trim(group_name)//'exposure'
-        call hdf5_read_double(file_id, dataset, state_xexpo(nstate))
+        call hdf5_read_double(file_id, dataset, state_expo(nstate))
 
         dataset=trim(group_name)//'exposure_efpd'
-        call hdf5_read_double(file_id, dataset, state_xefpd(nstate))
+        call hdf5_read_double(file_id, dataset, state_efpd(nstate))
 
         dataset=trim(group_name)//'keff'
         call hdf5_read_double(file_id, dataset, xkeff)
@@ -467,12 +509,10 @@
 
 !--- save statepoint values
 
-        if (nstate.gt.maxstate) stop 'maxstate exceeded - increase and recompile'
-
         state_xkeff(nstate)=xkeff
 
-        write (*,'(a, f10.4,a)') ' exposure =', state_xexpo(nstate),' GWD/MT'
-        write (*,'(a, f10.4,a)') ' exposure =', state_xefpd(nstate),' EFPD'
+        write (*,'(a, f10.4,a)') ' exposure =', state_expo(nstate),' GWD/MT'
+        write (*,'(a, f10.4,a)') ' exposure =', state_efpd(nstate),' EFPD'
         write (*,'(a, f12.7)')   ' keff     =', xkeff
 
 !--------------------------
@@ -578,6 +618,10 @@
             call print2d_2pin_map(dist_label(idis), npin, nassm, tdist, kd)
           endif
 
+          if (ifexit) then
+            call print_exit_map(dist_label(idis),  npin,  kd, nassm, tdist)
+          endif
+
           if (ifbatch .and. idis.eq.llexp) then
              call batchstat (npin, kd, nassm, icore, jcore, mapcore, axial, tdist, power)
           endif
@@ -588,14 +632,11 @@
           call batchedit
         endif
 
-        if (istate.ne.0) exit    ! single statepoint option
-
-      enddo   ! end of statepoint loop
+      enddo   ! end of statepoint loop - nstate
 
 !--------------------------------------------------------------------------------
 ! Finish
 !--------------------------------------------------------------------------------
-  800 continue
 
       call h5fclose_f(file_id, ierror)
 
@@ -616,17 +657,17 @@
       write (*,108)
       if (kd.eq.1) then   ! 2d
         write (*,112)
-        do n=1, nstate
+        do n=1, maxstate
           write (*,122) n, &
-                 state_xexpo(n), state_xefpd(n), state_xkeff(n), &
-                 state_boron(n), state_2pin(n),  state_3exp(n)
+                 state_expo(n),  state_efpd(n), state_xkeff(n), &
+                 state_boron(n), state_2pin(n), state_3exp(n)
         enddo
       else              ! 3D
         write (*,110)   ! 3D
-        do n=1, nstate
+        do n=1, maxstate
           write (*,120) n, &
-                 state_xexpo(n), state_xefpd(n), state_xkeff(n), &
-                 state_boron(n), state_2pin(n),  state_3pin(n),  &
+                 state_expo(n),  state_efpd(n), state_xkeff(n), &
+                 state_boron(n), state_2pin(n), state_3pin(n),  &
                  state_3exp(n),  state_axoff(n)
 !x               state_flow(n), state_power(n), state_tinlet(n),
         enddo
@@ -648,9 +689,9 @@
 
       if (ifbwr) then
         write (*,114)
-        do n=1, nstate
+        do n=1, maxstate
           write (*,124) n, &
-                 state_xexpo(n), state_xkeff(n), &
+                 state_expo(n),  state_xkeff(n), &
                  state_power(n), state_flow(n), state_tinlet(n)
         enddo
       endif
@@ -659,8 +700,8 @@
 
       if (iftfu) then
         write (*,220)
-        do n=1, nstate
-          write (*,222) n, state_xexpo(n), state_xefpd(n), state_atfu(n), state_3tfu(n)
+        do n=1, maxstate
+          write (*,222) n, state_expo(n), state_efpd(n), state_atfu(n), state_3tfu(n)
         enddo
       endif
   220 format (/,'Fuel Temperature Edits (C)', &
@@ -674,8 +715,9 @@
         open (33,file='output.csv')
         write (33,'(a)') trim(inputfile)
         write (33,310)
-        do n=1, nstate
-          write (33,320) n, state_xexpo(n), state_xefpd(n), state_xkeff(n), &
+        do n=1, maxstate
+          write (33,320) n, &
+                 state_expo(n),  state_efpd(n), state_xkeff(n), &
                  state_boron(n), state_2pin(n), state_3pin(n), state_3exp(n), &
                  state_axoff(n)
         enddo
@@ -689,8 +731,8 @@
 
       if (iftime) then
         write (*,150)
-        do n=1, nstate
-          write (*,160) n, state_xexpo(n), state_xefpd(n), state_nout(n), state_time(n)
+        do n=1, maxstate
+          write (*,160) n, state_expo(n), state_efpd(n), state_nout(n), state_time(n)
         enddo
       endif
   150 format (/,'==================================',&
@@ -700,6 +742,22 @@
   160 format (i4, f10.4, f10.2, i8, 1x, f12.3)
 
 !--- finished
+
+      deallocate (state_xkeff)
+      deallocate (state_expo)  ! exposure
+      deallocate (state_efpd)  ! exposure EFPD
+      deallocate (state_boron)
+      deallocate (state_flow )
+      deallocate (state_power)
+      deallocate (state_tinlet)
+      deallocate (state_3exp)
+      deallocate (state_3pin)
+      deallocate (state_2pin)
+      deallocate (state_axoff)
+      deallocate (state_nout)
+      deallocate (state_time)
+      deallocate (state_atfu)
+      deallocate (state_3tfu)
 
       write (*,'(/,a)') 'done'
 
@@ -764,8 +822,8 @@
       end subroutine check_normalization
 !=======================================================================
 !
-!  MPACT has non-zero values for fuel temperatures so zero the values
-!  out if the power is zero
+!  MPACT has non-zero values for fuel temperatures in non-fuel rods
+!  so zero the values out if the power is zero
 !
 !=======================================================================
       subroutine masktfu (npin, kd, nassm, power, tdist)
