@@ -1,15 +1,17 @@
-   program makehdf 
+   program makehdf
 !=======================================================================
 !
 !  Program to create VERAOUT test file with boron and eigenvalue at multiple statepoints
 !
-!  Copyright (c) 2014 Core Physics, Inc.
+!  Copyright (c) 2014-2021 Core Physics, Inc.
 !
-!  Distributed under the MIT license.  
+!  Distributed under the MIT license.
 !  See the LICENSE file in the main directory for details.
 !
 !  2014/04/26 - modify to use lower case datasets
-!  2014/05/01 - update to match VERAOUT Rev. 1 
+!  2014/05/01 - update to match VERAOUT Rev. 1
+!  2020/01/18 - update to match latest VERA
+!               added pin loadings and exposure_efpd
 !
 !=======================================================================
 
@@ -30,9 +32,8 @@
 
       integer :: nassm=9
       integer :: naxial=10
-      integer :: npin=3
+      integer :: npin=3     ! 3x3 pin map
       real(8), allocatable :: pinpower(:,:,:,:)
-
 
       integer     :: mapcore(3,3)
       data mapcore / 1, 2, 3, 4, 5, 6, 7, 8, 9 /
@@ -42,9 +43,8 @@
       real(8)     :: sum
 
       real(8), allocatable :: axial(:)      ! axial mesh (naxial+1)
-      real(8), allocatable :: xkeff(:)      ! eigenvalues
-      real(8), allocatable :: xboron(:)     ! boron concentrations
-      real(8), allocatable :: xexp(:)       ! exposure points (GWD/MT)
+      real(8) :: xkeff
+      real(8) :: xboron      ! boron concentrations
 
       character(len=10) :: cdate, ctime
       character(len=80) :: stringin      ! make these strings different lengths
@@ -53,7 +53,6 @@
       integer     :: nstate
       integer     :: ierror
 
-
 !--- read number of statepoints from input
 
       write (*,*) 'How many statepoints?'
@@ -61,21 +60,12 @@
 
 !--- allocate and fill dummy arrays
 
-      allocate (xkeff(nstate))
-      allocate (xboron(nstate))
-      allocate (xexp(nstate))
 
       if (nstate.gt.1) then
         db=1000.0d0/dble(nstate-1)
       else
         db=0.0d0
       endif
-
-      do n=1, nstate
-        xexp(n)=dble(n-1)
-        xkeff(n)=1.0d0 - (n-1)*1.0d-4
-        xboron(n)=1000.0d0 - (n-1)*db
-      enddo
 
       allocate (axial(naxial+1))
       allocate (pinpower(nassm, naxial, npin, npin))
@@ -179,6 +169,30 @@
       dsetname = trim(group_name)//'axial_mesh'
       call hwrite_double(file_id, dsetname, idims, axial)
 
+!--- pin loadings
+!  (this dataset is necessary to set pin array dimensions)
+
+        sum=0.0d0
+        do i=1, npin
+          do j=1, npin
+            if (i.eq.2 .and. j.eq.2) cycle   ! skip middle pin
+            do k=1, naxial
+              do na=1, nassm
+                 pinpower(na,k,j,i)= 0.0055d0   ! random value
+              enddo
+            enddo
+          enddo
+        enddo
+
+        idims(:)=0     ! clear
+        idims(1)=nassm
+        idims(2)=naxial
+        idims(3)=npin
+        idims(4)=npin
+
+        dsetname = trim(group_name)//'initial_mass'
+        call hwrite_double(file_id, dsetname, idims, pinpower)
+
 ! rated power and flow
 
       idims(:)=0     ! clear
@@ -238,18 +252,22 @@
 
 ! boron
 
+        xboron=1000.0d0 - (n-1)*db
+
         idims(:)=0     ! clear
         idims(1)=1
-        atemp(1)=xboron(n)   ! hack: send as single element array in order to pass type checking
+        atemp(1)=xboron   ! hack: send as single element array in order to pass type checking
 
         dsetname = trim(group_name)//'boron'
         call hwrite_double(file_id, dsetname, idims, atemp)
 
 ! eigenvalue
 
+        xkeff=1.0d0 - (n-1)*1.0d-4
+
         idims(:)=0     ! clear
         idims(1)=1
-        atemp(1)=xkeff(n)   ! hack: send as single element array in order to pass type checking
+        atemp(1)=xkeff   ! hack: send as single element array in order to pass type checking
 
         dsetname = trim(group_name)//'keff'
         call hwrite_double(file_id, dsetname, idims, atemp)
@@ -258,9 +276,18 @@
 
         idims(:)=0     ! clear
         idims(1)=1
-        atemp(1)=xexp(n)   ! hack: send as single element array in order to pass type checking
+        atemp(1)=dble(n-1)  ! hack: send as single element array in order to pass type checking
 
         dsetname = trim(group_name)//'exposure'
+        call hwrite_double(file_id, dsetname, idims, atemp)
+
+! exposure_efpd
+
+        idims(:)=0     ! clear
+        idims(1)=1
+        atemp(1)=dble(n-1)*0.4d0
+
+        dsetname = trim(group_name)//'exposure_efpd'
         call hwrite_double(file_id, dsetname, idims, atemp)
 
 ! power
@@ -281,10 +308,9 @@
         dsetname = trim(group_name)//'flow'
         call hwrite_double(file_id, dsetname, idims, atemp)
 
-
 !--- pin power
 
-        sum=0.0d0 
+        sum=0.0d0
         do i=1, npin
           do j=1, npin
             if (i.eq.2 .and. j.eq.2) cycle   ! skip middle pin
@@ -302,7 +328,7 @@
 
         do i=1, npin
           do j=1, npin
-            if (i.eq.2 .and. j.eq.2) cycle   ! skip middle pin
+            if (i.eq.2 .and. j.eq.2) cycle   ! skip middle pin (this is 3x3 array)
             do k=1, naxial
               do na=1, nassm
                  pinpower(na,k,j,i)=pinpower(na,k,j,i)*sum
@@ -338,10 +364,6 @@
       call h5fclose_f(file_id, ierror)
 
       write (*,'(2a)') ' finished writing file: ', trim(filename)
-
-      deallocate (xkeff)
-      deallocate (xboron)
-      deallocate (xexp)
 
 !--- Close fortran interface.
 
