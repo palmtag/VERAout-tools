@@ -261,14 +261,25 @@
 ! version
 
       dataset='veraout_version'
-      call hdf5_read_integer(file_id, dataset, iver)
+      call h5lexists_f(file_id, dataset, ifxst, ierror)
+      if (ifxst) then
+        call hdf5_read_integer(file_id, dataset, iver)
+      else
+        iver=0
+        write (*,'(2a)') 'WARNING: veraout_version dataset does not exist on this file'
+      endif
 
 ! title
 
       title=' '
 
       dataset='title'
-      call read_string(file_id, dataset, title)
+      call h5lexists_f(file_id, dataset, ifxst, ierror)
+      if (ifxst) then
+        call read_string(file_id, dataset, title)
+      else
+        write (*,'(2a)') 'WARNING: title dataset does not exist on this file'
+      endif
 
       write (*,*)
       write (*,'(2a)')     ' Title: ', trim(title)

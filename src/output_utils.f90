@@ -29,11 +29,12 @@
 !--- local
 
       integer  :: i, j, k
-      integer  :: ia, ja, na, kpin
+      integer  :: ia, ja, na, kpin, nexit
       real(8)  :: p2d, z2d
       real(8)  :: pp
       real(8)  :: zlen, zave      ! axial values
       real(8)  :: c3min, c3max    ! 3D values
+      real(8)  :: exave           ! exit average
       integer  :: k2max(3)        ! 2D max locations
       integer  :: k3min(4)        ! 3D min locations
       integer  :: k3max(4)        ! 3D max locations
@@ -52,6 +53,9 @@
       k3min(:)=0
       k3max(:)=0
       k2max(:)=0
+
+      exave=0.0d0
+      nexit=0
 
       do ja=1, jcore     ! loop over assemblies in full-core
         do ia=1, icore   ! loop over assemblies in full-core
@@ -96,6 +100,9 @@
                 k2max(3)=na
               endif
             endif
+            pp=power(i,j,kd,na)   ! exit value
+            exave=exave+pp
+            nexit=nexit+1
           enddo
         enddo
       enddo    ! ia
@@ -121,6 +128,8 @@
       endif
       write (*,'(a,i10)  ')  '  Num  ', kpin
 
+      write (*,*) 'exit average ', exave/dble(nexit), nexit
+
   180 format (2x, a,f10.4,'  at (i,j,k,na)', 4i4)
   181 format (2x, a,f10.4,'  at (i,j,  na)', 2i4,4x,i4)
   182 format (2x, a,f10.4)
@@ -132,20 +141,20 @@
 
 !--- check for very small values
 
-      do k=1, kd
-        do na=1, nassm
-          do j=1, npin
-            do i=1, npin
-              pp=power(i,j,k,na)
-              if (pp.gt.0.0d0) then
-                if (pp.lt.zave*1.0d-4) then
-                   write (*,*) 'small value detected ', i, j, k, na, pp
-                endif
-              endif
-            enddo
-          enddo
-        enddo
-      enddo
+!     do k=1, kd
+!       do na=1, nassm
+!         do j=1, npin
+!           do i=1, npin
+!             pp=power(i,j,k,na)
+!             if (pp.gt.0.0d0) then
+!               if (pp.lt.zave*1.0d-4) then
+!                  write (*,*) 'small value detected ', i, j, k, na, pp
+!               endif
+!             endif
+!           enddo
+!         enddo
+!       enddo
+!     enddo
 
       return
       end subroutine stat3d

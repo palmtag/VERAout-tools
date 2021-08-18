@@ -302,7 +302,12 @@
         call h5_fatal('read_integer1d','invalid number of dimensions')
       endif
 
-      if (h_dims(1).ne.idm) call h5_fatal('read_integer1d','idm error')
+      if (h_dims(1).ne.idm) then
+         write (0,*) '> number dimensions ', maxndim
+         write (0,*) '> h_dims(1)         ', h_dims(1)
+         write (0,*) '> idm               ', idm
+         call h5_fatal('read_integer1d','idm error 1D')
+      endif
 
 ! Read data from dataset
       call h5dread_f(dset_id, H5T_NATIVE_INTEGER, ivar, h_dims, ierror)
@@ -401,8 +406,13 @@
         call h5_fatal('read_integer2d','invalid number of dimensions')
       endif
 
-      if (h_dims(1).ne.idm) call h5_fatal('read_integer2d','idm error')
-      if (h_dims(2).ne.jdm) call h5_fatal('read_integer2d','jdm error')
+      if (h_dims(1).ne.idm .or. h_dims(2).ne.jdm) then
+        write (0,*) '> h_dims(1) ', h_dims(1)
+        write (0,*) '> h_dims(2) ', h_dims(2)
+        write (0,*) '> idm       ', idm
+        write (0,*) '> jdm       ', jdm
+        call h5_fatal('read_integer2d','idm-jdm error 2D')
+      endif
 
 ! Read data from dataset
       call h5dread_f(dset_id, H5T_NATIVE_INTEGER, ivar, h_dims, ierror)
