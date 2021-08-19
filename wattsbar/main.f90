@@ -112,11 +112,13 @@
 !
 !=======================================================================
       subroutine readpow(powfile)
-      use mod_state, only : pinpow
+      use mod_state
       implicit none
 
-      character(len=*), intent(in) :: powfile
+      character(len=*), intent(in) :: powfile   ! input file name
 
+      character(len=200) :: line
+      character(len=10)  :: key
       integer :: na, i, j, k
 
       pinpow=0.0d0
@@ -124,7 +126,24 @@
       open(81,file=powfile,status='old',action='read')
 
       do
-        read (81,*,end=100) na, k, i, j, pinpow(na,k,i,j)
+        read (81,'(a)',end=100) line
+        if (line.eq.' ') cycle   ! skip blank line
+        read (line,*) key        ! read first keyword, might be a number
+        if     (key.eq.'boron') then
+           read (line,*) key, boron
+        elseif (key.eq.'keff') then
+           read (line,*) key, xkeff
+        elseif (key.eq.'power') then
+           read (line,*) key, power
+        elseif (key.eq.'flow') then
+           read (line,*) key, flow
+        elseif (key.eq.'efpd') then
+           read (line,*) key, efpd
+        elseif (key.eq.'exposure') then
+           read (line,*) key, ave_exp
+        else          ! read power
+          read (line,*) na, k, i, j, pinpow(na,k,i,j)
+        endif
       enddo
   100 continue
 
