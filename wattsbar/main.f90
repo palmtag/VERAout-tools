@@ -18,7 +18,7 @@
 !=======================================================================
       use hdf5
       use mod_geom,  only : npin, maxasm, kdfuel
-      use mod_state, only : mem_state, pinpow
+      use mod_state, only : mem_state
       implicit none
 
       character(len=100) :: hdfname   ! HDF output file name
@@ -28,7 +28,7 @@
       integer :: ista      ! statepoint number
       integer :: iout      ! output unit number
 
-      integer :: k, na
+      integer :: k
 
       integer :: maxsta=1  ! ***** only write one state for now
 
@@ -83,42 +83,7 @@
 !  Read user data
 !-----------------------------------------
 
-!!    open(81,file=powfile,status='old',action='read')
-
-      pinpow=0.1d0
-
-!!    pinpow(na,k,i,j)
-
-      na=10   ! assembly
-      do k=1, npin   ! j
-        pinpow(na,:,1,k)=1.0d0+dble(k)*0.1d0
-        pinpow(na,:,2,k)=1.0d0+dble(k)*0.1d0
-        pinpow(na,:,3,k)=1.0d0+dble(k)*0.1d0
-        pinpow(na,:,4,k)=1.0d0+dble(k)*0.1d0
-        pinpow(na,:,5,k)=1.0d0+dble(k)*0.1d0
-        pinpow(na,:,10,k)=1.0d0+dble(k)*0.1d0
-      enddo
-
-      na=44   ! assembly
-      do k=1, npin   ! j
-        pinpow(na,:,k,4)=2.0d0+dble(k)*0.1d0
-        pinpow(na,:,k,5)=2.0d0+dble(k)*0.1d0
-        pinpow(na,:,k,6)=2.0d0+dble(k)*0.1d0
-        pinpow(na,:,k,7)=2.0d0+dble(k)*0.1d0
-      enddo
-
-      na=43   ! assembly
-      pinpow(na,:, 1, 1)=1.1d0
-      pinpow(na,:, 1,17)=1.2d0
-      pinpow(na,:,17, 1)=1.3d0
-      pinpow(na,:,17,17)=1.7d0
-
- ! test k with assembly 52
-
-!!    do k=1, kdfuel
-!!      pinpow(:,:,52,k)=dble(k)
-!!    enddo
-
+      call readpow(powfile)
 
 !-------------------------
 !  Write statepoints
@@ -132,10 +97,6 @@
 
       enddo
 
-!--- close powfile input
-
-!!    close(81)   ! close pin file
-
 !--- close HDF file
 
       call h5fclose_f(file_id, ierror)
@@ -144,3 +105,33 @@
       write (iout,*) 'finished'
 
       end program create_wb_hdf
+
+!=======================================================================
+!
+!  Read user data from file
+!
+!=======================================================================
+      subroutine readpow(powfile)
+      use mod_state, only : pinpow
+      implicit none
+
+      character(len=*), intent(in) :: powfile
+
+      integer :: na, i, j, k
+
+      pinpow=0.0d0
+
+      open(81,file=powfile,status='old',action='read')
+
+      do
+        read (81,*,end=100) na, k, i, j, pinpow(na,k,i,j)
+      enddo
+  100 continue
+
+      close (81)
+
+! ???? check normalization
+
+      return
+      end subroutine readpow
+
