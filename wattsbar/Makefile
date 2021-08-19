@@ -16,7 +16,7 @@ EXEC = makewb.exe
 
 default: $(EXEC)
 
-$(EXEC) : Mod_hdftools.o Mod_geom.o Mod_state.o main.o writehdf.o
+$(EXEC) : Mod_hdftools.o Mod_geom.o Mod_state.o main.o writecore.o writestate.o
 	$(FC) $(FFLAGS) $^ -o $@
 
 Mod_hdftools.o : ../src/Mod_hdftools.f90
@@ -29,5 +29,6 @@ clean:
 	rm -f *.mod *.o $(EXEC)
 
 main.o : Mod_geom.o Mod_state.o
-writehdf.o : Mod_hdftools.o Mod_geom.o Mod_state.o
+writecore.o : Mod_hdftools.o Mod_geom.o Mod_state.o
+writestate.o : Mod_hdftools.o Mod_geom.o Mod_state.o
 

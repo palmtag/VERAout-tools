@@ -31,10 +31,10 @@
       integer, intent(in) :: maxasm
       integer, intent(in) :: kdfuel
 
-      allocate(pinpow(npin,npin,maxasm,kdfuel))
-      allocate(pinexp(npin,npin,maxasm,kdfuel))
+      allocate(pinpow(maxasm,kdfuel,npin,npin))
+      allocate(pinexp(maxasm,kdfuel,npin,npin))
 
-      pinpow=0.0    ! reset each statepoint
+      pinpow=0.0    ! fill at each statepoint
       pinexp=0.0
 
       return
