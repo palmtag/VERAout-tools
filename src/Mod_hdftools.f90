@@ -47,7 +47,7 @@
 !     hwrite_double (file_id, dataset, idims, xvar)
 !     hwrite_double_scalar (file_id, dataset, xvar)
 !     hwrite_string (file_id, dataset, strbuf)
-!     hwrite_stringx(file_id, dataset, idims, xvar) **** fix: arrays of strings
+!     hwrite_string1d(file_id, dataset, xvar, idims)  !  1D array of strings
 !
 !
 !   Prefix  H5A Attributes
@@ -1255,7 +1255,7 @@
 
       integer, parameter :: max_dimen=1     ! maximum number of dimensions allowed
 
-      integer(hsize_t)   :: h_dims(4)  ! (max_dimen)
+      integer(hsize_t)   :: h_dims(4)     ! (max_dimen)
       integer(hsize_t)   :: h_maxdims(4)  ! (max_dimen)
 
       character(len=1), allocatable :: htemp(:,:)
@@ -1849,65 +1849,44 @@
 !  file_id - file id returned by HDF5 open statement
 !  dataset - data set name
 !
-! ***** fix: this is not working, how do you write an array of strings? *******
-!
 !=======================================================================
-      subroutine hwrite_stringx(file_id, dataset, idims, namex)
+      subroutine hwrite_string1d(file_id, dataset, namex, idims)
       implicit none
 
       character(len=*), intent(in) :: dataset      ! Dataset name
       integer(hid_t),   intent(in) :: file_id      ! File identifier
-      integer,          intent(in) :: idims(10)    ! Dataset dimensions
-      character(len=*), intent(in) :: namex(*)     ! multi-dimensional array, treated as 1D
+      integer,          intent(in) :: idims        ! Dataset dimensions
+      character(len=*), intent(in) :: namex(idims) ! 1D array
 
 !--- local
 
       integer(hid_t) :: dset_id       ! Dataset identifier
       integer(hid_t) :: dspace_id     ! Dataspace identifier
-!att  integer(hid_t) :: aspace_id     ! attribute identifier
-!att  integer(hid_t) :: attr_id       ! attribute id
-      integer(size_t):: attrlen       ! length of string
+      integer(size_t):: len_string    ! length of string
       integer(hid_t) :: type_id       ! attribute type to be written
 
-      integer  :: i
       integer  :: ierror              ! Error flag
       integer  :: irank               ! dataset rank
       integer(hsize_t) :: idimht(10)  ! Dataset dimensions - using HDF size
 
-! Create scalar dataspace (information about array)
+! Create dataspace (information about array)
 
-      attrlen=len(namex)
-      irank=0
-      do i=1, 10
-        idimht(i)=idims(i)    ! convert from normal integer to hsize_t
-        if (idimht(i).gt.0) irank=i
-      enddo
+      irank=1               ! 1D array
+      len_string=len(namex)
+      idimht(1)=idims
 
-      write (*,'(2a,i3)') ' writing dataspace name: ', dataset
-      write (*,*)         ' debug: rank           : ', irank
-      write (*,*)         ' debug: size           : ', idimht(1:irank)
-      write (*,*)         ' debug: len            : ', attrlen
-!att  call h5screate_simple_f(irank, idimht, aspace_id, ierror)
-!att  if (ierror.ne.0) call h5_fatal('ierror: h5screate_simple','ierror')
+!d    write (*,'(2a,i3)') ' writing dataspace name: ', dataset
+!d    write (*,*)         ' debug: rank           : ', irank
+!d    write (*,*)         ' debug: size           : ', idimht(1:irank)
+!d    write (*,*)         ' debug: len            : ', len_string
+      call h5screate_simple_f(irank, idimht, dspace_id, ierror)
+      if (ierror.ne.0) call h5_fatal('ierror: h5screate_simple','ierror')
 
-      write (*,*) '*** WARNING: the ability to write arrays of strings is not working ***'   ! fix
-      write (*,*) '*** WARNING: This needs to be fixed                                ***'   ! fix
-
-!-------------------------------------------------------
-!  For an example of writing a 1D array of strings,
-!  see example input "attrexample.f90"
-!-------------------------------------------------------
-
-! Create datatype for the attribute.
-
+! Create data type id (from William)
       call h5tcopy_f(H5T_NATIVE_CHARACTER, type_id, ierror)
-      call h5tset_size_f(type_id, attrlen, ierror)
+      if (ierror.ne.0) call h5_fatal('ierror: h5tcopy_f','ierror')
+      call h5tset_size_f(type_id, int(len_string, HSIZE_T), ierror)
       if (ierror.ne.0) call h5_fatal('ierror: h5tset_size_f','ierror')
-
-! Create the dataspace
-
-      call h5screate_f (H5S_SCALAR_F, dspace_id, ierror)
-      if (ierror.ne.0) call h5_fatal('ierror: h5screate_f','ierror')
 
 ! Create the dataset with default properties.
 
@@ -1919,17 +1898,6 @@
       call h5dwrite_f (dset_id, type_id, namex, idimht, ierror)
       if (ierror.ne.0) call h5_fatal('ierror: h5dwrite_f','ierror')
 
-!att  call h5acreate_f(dset_id, dataset, type_id, aspace_id, attr_id, ierror)
-!att  if (ierror.ne.0) call h5_fatal('ierror: h5acreate_f','ierror')
-
-! Write the attribute data.
-
-!att  call h5awrite_f(attr_id, type_id, namex, idimht, ierror)
-
-! Close the attribute.
-
-!att  call h5aclose_f(attr_id, ierror)
-
 ! Close the dataset
 
       call h5tclose_f(type_id, ierror)
@@ -1940,7 +1908,7 @@
       if (ierror.ne.0) call h5_fatal('ierror: h5sclose_f','ierror')
 
       return
-      end subroutine hwrite_stringx
+      end subroutine hwrite_string1d
 !=======================================================================
 !
 !  Subroutine to return size of array from HDF file

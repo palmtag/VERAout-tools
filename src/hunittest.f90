@@ -263,7 +263,7 @@
 ! **** fix: this routine is not working, it only writes the first element of array ****
 
       dsetname='namex'
-      call hwrite_stringx(file_id, dsetname, idims, namex)
+      call hwrite_string1d(file_id, dsetname, namex, idims(1))
 
 !--- close file.
 
@@ -544,34 +544,27 @@
         write (*,220) 'read_string', 'FAIL'
       endif
 
-!--- read array of strings
+!--- read 1D array of strings
 
       namex(1)='X'
       namex(2)='X'
       namex(3)='X'
+      i=3   ! pass in number to read
 
-      write (*,*) '**** WARNING: skipping test of read_string1d *****'
+      dsetname='namex'
+      call read_string1d(file_id, dsetname, namex, i)
 
-!!    dsetname='namex'
-!!    call read_string1d(file_id, dsetname, namex, 3, i)
-!!    if (i.ne.3) then
-!!       write (*,*) 'read 1D string array size ', i
-!!       write (*,*) 'expecting          ', 3
-!!       write (*,220) 'error in returned 1D size', 'FAIL'
-!!       nfail=nfail+1
-!!    endif
-
-!!    nbad=0
-!!    if (namex(1).ne.'this bird') nbad=nbad+1
-!!    if (namex(2).ne.'flew fast') nbad=nbad+1
-!!    if (namex(3).ne.'over tree') nbad=nbad+1
-!!    if (nbad.eq.0) then
-!!      write (*,220) 'read_string1d', 'PASS'
-!!    else
-!!      write (*,*) 'number of errors ', nbad
-!!      nfail=nfail+1
-!!      write (*,220) 'read_string1d', 'FAIL'
-!!    endif
+      nbad=0
+      if (namex(1).ne.'this bird') nbad=nbad+1
+      if (namex(2).ne.'flew fast') nbad=nbad+1
+      if (namex(3).ne.'over tree') nbad=nbad+1
+      if (nbad.eq.0) then
+        write (*,220) 'read_string1d', 'PASS'
+      else
+        write (*,*) 'number of errors ', nbad
+        nfail=nfail+1
+        write (*,220) 'read_string1d', 'FAIL'
+      endif
 
 !--- close file
 
