@@ -22,8 +22,10 @@
       real(8)  :: apitch                    ! assembly pitch (cm)
       real(8)  :: coremass                  ! core_initial_mass (kg HM)
       real(8)  :: lhgr                      ! nominal_linear_heat_rate (W/cm)
+      real(8)  :: axial0                    ! save bottom elevation (11.951 cm)
 
       integer, allocatable :: mapcore(:,:)  ! core assembly map
+      integer, allocatable :: detector_map(:,:)  ! detector map (icore,jcore)
 
       real(8), allocatable :: axial(:)      ! axial elevations
       real(8), allocatable :: pinload(:,:,:,:)  ! pin loadings (npin,npin,kd,nassm)
@@ -178,6 +180,21 @@
          write (*,'(2x,20i3)') (mapcore(i,j),i=1,icore)
       enddo
 
+!--- detector map
+
+      allocate (detector_map(icore,jcore))
+      detector_map=0
+
+      dataset=trim(group_name)//'detector_map'
+      call h5info(file_id, dataset, itype, ndim, idim)
+      if (ndim.ne.2) stop 'invalid dimensions in detector_map'
+      call hdf5_read_integer(file_id, dataset, icore, jcore, detector_map)
+
+!d    write (*,'(/,a)') ' Detector Map:'
+!d    do j=1, jcore
+!d       write (*,'(2x,20i3)') (detector_map(i,j),i=1,icore)
+!d    enddo
+
 !--- axial mesh
 
       dataset=trim(group_name)//'axial_mesh'
@@ -212,6 +229,7 @@
       write (*,'(a,f12.4)') ' total core height = ', axial(naxial+1)-axial(1)
       write (*,*)
 
+      axial0=axial(1)    ! save bottom height
       do j=1, naxial
         axial(j)=axial(j+1)-axial(j)   ! convert to deltas
       enddo

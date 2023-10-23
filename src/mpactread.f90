@@ -3,6 +3,7 @@
    use  mod_hdftools
    use  mod_batch
    use  mod_coregeom, only : readcore, mapcore, icore, jcore, axial, nassm, npin, kd, pinload
+   use  mod_nea,      only : nea_open, print_nea, nea_close
    implicit none
 !=======================================================================
 !
@@ -115,6 +116,7 @@
       logical  :: ifbwr  =.false.           ! bwr edits (t/h edits)
       logical  :: ifbatch=.false.           ! batch edits
       logical  :: ifcsv  =.false.           ! print summary to csv file
+      logical  :: ifnea  =.false.           ! print summary to csv file in NEA benchmark format
 
 !--- initialize
 
@@ -151,6 +153,7 @@
         write (*,*) '  -exit  print exit maps for top plane'
         write (*,*) '  -load  print pin loadings'
         write (*,*) '  -csv   write summary to CSV file'
+        write (*,*) '  -nea   write summary to CSV file in NEA benchmark format'
         write (*,*) '  -time  print timing summary'
         write (*,*) '  -tfu   print fuel temperature edits'
         write (*,*) '  -bwr   print BWR T/H edits'
@@ -189,6 +192,8 @@
           ifdebug=.true.
         elseif (carg.eq.'-csv') then
           ifcsv=.true.
+        elseif (carg.eq.'-nea') then
+          ifnea=.true.
         elseif (carg.eq.'-load') then   ! print loadings
           ifload=.true.
         elseif (carg.eq.'-time') then
@@ -300,7 +305,7 @@
           call print_3D_pin_map(dataset, npin, kd, nassm, pinload)
         endif
         if (if1d) then
-          call print1d(dataset, npin, kd, nassm, pinload, axial)
+!fix      call print1d(dataset, npin, kd, nassm, pinload, axial)   ! need to update routine to calculate loading
         endif
 
         if (if2d .or. if2da) then
@@ -329,6 +334,12 @@
 
       if (ifbatch) then
         call batch_init(file_id, mapcore, icore, jcore)
+      endif
+
+!--- open NEA output files
+
+      if (ifnea) then      ! NEA benchmark edits
+        call nea_open()
       endif
 
 !---------------------
@@ -639,6 +650,10 @@
 
         enddo   ! distributions
 
+        if (ifnea) then      ! NEA benchmark edits
+          call print_nea(state_efpd(nstate), dist_label(llpow), nstate, npin,  kd, nassm, tdist)
+        endif
+
         if (ifbatch) then    ! batch edits
           call batchedit
         endif
@@ -650,6 +665,12 @@
 !--------------------------------------------------------------------------------
 
       call h5fclose_f(file_id, ierror)
+
+!--- close NEA output files
+
+      if (ifnea) then      ! NEA benchmark edits
+        call nea_close()
+      endif
 
 !--- deallocate distributions
 
@@ -732,6 +753,7 @@
                  state_boron(n), state_2pin(n), state_3pin(n), state_3exp(n), &
                  state_axoff(n)
         enddo
+        close (33)
       endif
 
   310 format ('Statepoint Summary', &
