@@ -227,6 +227,71 @@
 
 !=======================================================================
 !
+!  Subroutine to read integer attribute from a group
+!  (pretty specialized)
+!
+!  2024-06-12 code from:
+!  https://testsubjector.github.io/blog/2020/09/30/A-Primer-On-HDF5-File-Reading-In-Fortran-90
+!
+!=======================================================================
+      subroutine read_grpatt_int(file_id, group_name, attr_name, ivar)
+      implicit none
+
+      integer(hid_t),   intent(in) :: file_id
+      character(len=*), intent(in) :: group_name
+      character(len=*), intent(in) :: attr_name
+      integer,          intent(out):: ivar
+
+!--- local
+
+      integer(hid_t) :: group_id  ! Output variable
+      integer(hid_t) :: a_id    ! attribute ID
+      integer        :: ierror
+      integer(hsize_t) :: dims(1)
+
+      ierror=0
+
+!--- open the group
+
+      call h5gopen_f(file_id, group_name, group_id, ierror)
+
+      if (ierror.ne.0) then
+        write (*,*) 'error: h5gopen_f ', ierror
+        call h5_fatal('h5gopen_f','ierror')
+      endif
+
+!--- open the attribute
+
+      call h5aopen_name_f(group_id, attr_name, a_id, ierror)
+      if (ierror.ne.0) then
+        write (*,*) 'error: h5aopen_name_f ', ierror
+        call h5_fatal('h5aopen_name_f','ierror')
+      endif
+
+!--- read attribute
+
+      dims=1
+
+      call h5aread_f(a_id, H5T_NATIVE_INTEGER, ivar, dims, ierror)
+
+!--- close attribute and group
+
+      call h5aclose_f(a_id,    ierror)
+      if (ierror.ne.0) then
+        write (*,*) 'error: h5aclose_f ', ierror
+        call h5_fatal('h5aclose_f','ierror')
+      endif
+      call h5gclose_f(group_id,ierror)
+      if (ierror.ne.0) then
+        write (*,*) 'error: h5gclose_f ', ierror
+        call h5_fatal('h5gclose_f','ierror')
+      endif
+
+      return
+      end subroutine read_grpatt_int
+
+!=======================================================================
+!
 !  Subroutine to read 1D array of integers from HDF file
 !
 !  integer array has already been allocated and exact size must be given
