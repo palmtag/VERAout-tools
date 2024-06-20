@@ -17,7 +17,8 @@ This repository contains the following source files:
 * makehdf.f90 - Simple program to create a sample VERAout file for testing
 * mpactread.f90 - Simple program to read VERAout file created by MPACT
 * ctfread.f90 - Simple program to read HDF output file created by CTF
-* omcread.f90 - Simple program to read HDF output file created by OpenMC cross sections
+* omcxs.f90   - Simple program to read HDF cross section file created by OpenMC
+* omtally.f90 - Simple program to read HDF statepoint file created by OpenMC
 
 
 #### See the Wiki for information on installing HDF5
