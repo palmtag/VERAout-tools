@@ -30,6 +30,7 @@
       integer            :: n_inactive
       integer            :: n_tallies
       integer            :: n_filters
+!x    integer, allocatable :: filter_list(:) ! n_filters
       integer, allocatable :: cell_list(:)   ! (ncells)
       real(8), allocatable :: results(:,:,:) ! (2,1,ncells)
 
@@ -165,9 +166,19 @@
       call read_grpatt_int(file_id, group_name, dataset, n_filters)
       write (0,*) 'n_filters ', n_filters
 
+      if (n_filters.eq.0) goto 800   ! no filters present
+
+!x    allocate (filter_list(n_filters))
+!x    read "filters"  - this needs code to read attribute array...
+
 !  read tallies for this filter
 
         group_name='/tallies/filters/filter 1'
+        call h5lexists_f(file_id, group_name, ifxst, ierror)
+        if (.not.ifxst) then
+          write (*,'(/,1x,a)') 'filter 1 does not exist - exiting'
+          goto 800
+        endif
 
         dataset=trim(group_name)//'/n_bins'
         call hdf5_read_integer(file_id, dataset, ncells)
