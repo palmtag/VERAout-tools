@@ -454,7 +454,7 @@
           write (12,'(1p,e15.8)') cell(icell)%xstot(i)
         enddo
 
-        write (12,'(a)') 'scattter'
+        write (12,'(a)') 'scatter'
         do i=1, ngroups
           write (12,'(1p,100e15.8)') (cell(icell)%xsscat(i,j),j=1,ngroups)
         enddo
