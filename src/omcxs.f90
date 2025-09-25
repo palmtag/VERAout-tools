@@ -36,6 +36,7 @@
 
       logical            :: ifxst
       logical            :: ifdebug=.false. ! debug flag
+      logical            :: ifrmsmg=.false. ! special monte carlo edits
 
       character(len=80)  :: dataset         ! HDF dataset name
       character(len=12)  :: group_name
@@ -44,6 +45,7 @@
 
       real(8)            :: xtemp
       real(8)            :: chisum
+      real(8)            :: d1, siga1
 
 ! cross section data
 
@@ -145,8 +147,10 @@
         endif
       enddo
 
-      write (*,*) 'number of groups ', ngroups
+      write (0,*) 'number of groups ', ngroups
       write (0,*) 'number of cells  ', maxcell
+      write (*,*) 'number of groups ', ngroups
+      write (*,*) 'number of cells  ', maxcell
 
 !--- allocate cross section arrays
 
@@ -174,6 +178,15 @@
         allocate (cell(icell)%xsscat(ngroups,ngroups))
         cell(icell)%id=cell_list(icell)
         cell(icell)%iffis=.false.
+        cell(icell)%xsabs    =0.0d0
+        cell(icell)%xscap    =0.0d0
+        cell(icell)%xschi    =0.0d0
+        cell(icell)%xsfis    =0.0d0
+        cell(icell)%xskapfis =0.0d0
+        cell(icell)%xsnufis  =0.0d0
+        cell(icell)%xstran   =0.0d0
+        cell(icell)%xstot    =0.0d0
+        cell(icell)%xsscat   =0.0d0
       enddo
 
 !--- read cell data
@@ -355,6 +368,7 @@
           write (*,'(2a)') '>>', trim(dataset)
           write (*,'(2a)') 'WARNING: dataset does not exist for this file'
         else
+          write (*,*) 'transport and D'
           call hdf5_read_double(file_id, dataset, ngroups, cell(icell)%xstran)
           do i=1, ngroups
             write (*,160) i, cell(icell)%xstran(i), 1.0d0/(3.0d0*cell(icell)%xstran(i))
@@ -385,12 +399,28 @@
 
       call h5fclose_f(file_id, ierror)
 
+!--- one group edits
+
+      if (ngroups.eq.1) then
+         write (*,*)
+         write (*,*) 'one group edits'
+         icell=2
+         i=1    ! group
+         d1=1.0d0/(3.0d0*cell(icell)%xstran(i))
+         siga1=cell(icell)%xsfis(i)+cell(icell)%xscap(i)
+         write (*,'(1x,a,f10.4)')    'd1    ', d1
+         write (*,'(1x,a,1p,e12.4)') 'siga1 ', siga1
+         write (*,'(1x,a,f10.4)')    'L^2   ', d1/siga1
+         write (*,'(1x,a,f10.4)')    'L     ', sqrt(d1/siga1)
+         write (*,'(f10.4, 1p, e12.4, 0p, f10.4)') d1, siga1, sqrt(d1/siga1)
+      endif
+
 !--- balance
 !      abs = fis + cap
 !      tot = abs + scat
 
       write (*,*)
-      write (*,*) 'Cross Section Balance 1 abs'
+      write (*,*) 'Cross Section Balance - check abs'
       write (*,*) '  abs,  fis+cap, diff'
       do icell=1, maxcell
         write (*,'(1x,a,i0,1x,i0)') 'cell', icell, cell(icell)%id
@@ -401,7 +431,7 @@
       enddo
 
       write (*,*)
-      write (*,*) 'Cross Section Balance 2 transport'
+      write (*,*) 'Cross Section Balance - check transport'
       write (*,*) 'Is the in-group cross section corrected for????'
       write (*,*) ' trans, tot, fis+cap+scat, trans-sum'
       do icell=1, maxcell
@@ -418,20 +448,35 @@
 
 !--- convert total to removal (transport - in-group scattering)
 
-      write (*,*) 'setting total to transport - in-group scatter  (i.e. removal)'
-      write (*,*) 'setting in-group scatter to zero'
-      do icell=1, maxcell
-        do i=1, ngroups
-          cell(icell)%xstot(i)=cell(icell)%xstran(i)-cell(icell)%xsscat(i,i)
-          cell(icell)%xsscat(i,i)=0.0d0
+!r    write (*,*) 'setting total to transport - in-group scatter  (i.e. removal)'
+!r    write (*,*) 'setting in-group scatter to zero'
+!r    do icell=1, maxcell
+!r      do i=1, ngroups
+!r        cell(icell)%xstot(i)=cell(icell)%xstran(i)-cell(icell)%xsscat(i,i)
+!r        cell(icell)%xsscat(i,i)=0.0d0
+!r      enddo
+!r    enddo
+
+!--- edits for Monte Carlo - hardcode to last cell number
+
+      if (ifrmsmg) then
+        icell=maxcell
+        write (*,*)
+        write (*,*) 'Monte Carlo edits'
+        write (*,"(' ngrp ', i0,' /')") ngroups
+        write (*,220,advance='no') (cell(icell)%xsabs(i),i=1,ngroups)
+        write (*,*) '/ abs'
+  220   format (' siga ', 1p, 100e12.5)
+        write (*,*) 'sigs / start input on next line'
+        do j=1, ngroups
+          write (*,'(1p,100e12.5)',advance='no') (cell(icell)%xsscat(i,j),i=1,ngroups)
+          write (*,'(a,i0)') ' / from ', j
         enddo
-      enddo
+      endif
 
 !--- Final edits to text file
 
-! *** total is now removal
-
-      write (*,*) 'creating file: xs.txt'
+      write (*,*) 'creating file: xs.txt for Lupine style edits'
 
       open (12,file='xs.txt')
       write (12,'(a,i0)') 'ngroup ', ngroups
@@ -472,6 +517,55 @@
           enddo
         endif
       enddo
+      close (12)
+
+!--- edit finemesh edits to xs2
+
+      write (*,*) 'creating file: xs2.txt'
+
+      open (12,file='xs2.txt')
+      write (12,'(a,i0)') 'group ', ngroups
+      write (12,'(a,i0)') 'niso   ', maxcell
+      write (12,'(a)') '# ============================================'
+      write (12,'(a)') '#   Cross sections'
+      write (12,*)
+      do icell=1, maxcell
+         write (12,'(a,i4,a,i0,a)') 'mat ',icell,' MAT',cell(icell)%id,' /'
+      enddo
+
+      do icell=1, maxcell
+        write (12,*)
+        write (12,'(a,i0)') '# name MAT', cell(icell)%id
+
+        write (12,'(a,i0)') 'diff ', icell
+        do i=1, ngroups
+          write (12,'(1p,e15.8)') 1.0d0/(3.0d0*cell(icell)%xstran(i))
+        enddo
+
+        write (12,'(a,i0)') 'abs ', icell     ! now the removal cross section
+        do i=1, ngroups
+          write (12,'(1p,e15.8)') cell(icell)%xsabs(i)
+        enddo
+
+        write (12,'(a,i0)') 'scat ', icell
+        do i=1, ngroups
+          write (12,'(1p,100e16.8)') (cell(icell)%xsscat(j,i),j=1,ngroups)
+        enddo
+
+        if (cell(icell)%iffis) then
+
+          write (12,'(a,i0)') 'nufis ', icell
+          do i=1, ngroups
+            write (12,'(1p,e15.8)') cell(icell)%xsnufis(i)
+          enddo
+
+          write (12,'(a,i0)') 'chi ', icell
+          do i=1, ngroups
+            write (12,'(1p,e15.8)') cell(icell)%xschi(i)
+          enddo
+        endif
+      enddo
+      write (12,'(a)') 'sta'
       close (12)
 
       write (*,'(/,a)') 'done'
